@@ -1,0 +1,11 @@
+# Variables d'environnement pour Hostinger
+# Copiez ces variables dans votre panel Hostinger > Node.js App > Environment Variables
+
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key_here
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=space-learn-a2406.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=space-learn-a2406
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=space-learn-a2406.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id_here
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id_here
+NODE_ENV=production
+NEXT_PUBLIC_BUILD_ENV=production 
