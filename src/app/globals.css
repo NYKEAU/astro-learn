@@ -105,7 +105,6 @@
 
 /* Animation des étoiles - version optimisée (ni trop rapide, ni trop lente) */
 @keyframes twinkle {
-
   0%,
   30%,
   70%,
@@ -173,9 +172,11 @@
   content: "";
   position: absolute;
   inset: -3px;
-  background: linear-gradient(90deg,
-      rgba(51, 204, 255, 0.3),
-      rgba(255, 51, 153, 0.3));
+  background: linear-gradient(
+    90deg,
+    rgba(51, 204, 255, 0.3),
+    rgba(255, 51, 153, 0.3)
+  );
   border-radius: inherit;
   z-index: -1;
   opacity: 0;
@@ -218,9 +219,11 @@
   content: "";
   position: absolute;
   inset: -3px;
-  background: linear-gradient(90deg,
-      rgba(56, 189, 248, 0.3),
-      rgba(168, 85, 247, 0.3));
+  background: linear-gradient(
+    90deg,
+    rgba(56, 189, 248, 0.3),
+    rgba(168, 85, 247, 0.3)
+  );
   border-radius: inherit;
   z-index: -1;
   opacity: 0;
@@ -233,17 +236,21 @@
 
 /* Tab styling */
 .tabs-container {
-  background: linear-gradient(to right,
-      hsl(var(--card) / 0.3),
-      hsl(var(--card) / 0.1));
+  background: linear-gradient(
+    to right,
+    hsl(var(--card) / 0.3),
+    hsl(var(--card) / 0.1)
+  );
   backdrop-filter: blur(8px);
 }
 
 /* Input field styling */
 .input-space {
-  background: linear-gradient(to right,
-      hsl(var(--input) / 0.8),
-      hsl(var(--input) / 0.6));
+  background: linear-gradient(
+    to right,
+    hsl(var(--input) / 0.8),
+    hsl(var(--input) / 0.6)
+  );
   border: 1px solid hsl(var(--border) / 0.3);
 }
 
@@ -254,15 +261,17 @@
 /* Fond étoilé */
 .astronomy-bg {
   background-color: #0a0e1a;
-  background-image: radial-gradient(circle,
-      rgba(255, 255, 255, 0.05) 1px,
-      transparent 1px);
+  background-image: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.05) 1px,
+    transparent 1px
+  );
   background-size: 30px 30px;
 }
 
 /* Styles pour les entrées de formulaire */
 .form-input-focus {
-  @apply border-primary shadow-[0_0_8px_rgba(56, 189, 248, 0.3)];
+  @apply border-primary shadow-[0_0_8px_rgba(56,189,248,0.3)];
 }
 
 /* Assurez-vous que le formulaire est toujours visible */
@@ -278,16 +287,14 @@
 /* Animation d'étoile filante occasionnelle */
 @keyframes shootingStar {
   0% {
-    transform: translateX(-100px) translateY(-100px);
+    transform: translate(0, 0);
     opacity: 0;
   }
-
   10% {
     opacity: 1;
   }
-
   100% {
-    transform: translateX(calc(100vw + 100px)) translateY(calc(100vh + 100px));
+    transform: translate(calc(100vw), calc(100vh));
     opacity: 0;
   }
 }
@@ -298,7 +305,7 @@
   left: 0;
   width: 100px;
   height: 1px;
-  background: linear-gradient(to right, transparent, white, transparent);
+  background: linear-gradient(to right, white, transparent);
   transform: rotate(45deg);
   animation: shootingStar 15s infinite linear;
   animation-delay: calc(var(--delay) * 5s);
@@ -378,9 +385,11 @@
 
 /* Ajout des classes pour les dégradés */
 .bg-gradient-to-r.from-neon-blue.to-neon-pink {
-  background: linear-gradient(to right,
-      hsl(195, 100%, 60%),
-      hsl(330, 100%, 60%));
+  background: linear-gradient(
+    to right,
+    hsl(195, 100%, 60%),
+    hsl(330, 100%, 60%)
+  );
 }
 
 /* Ajout des classes pour les polices */
@@ -434,7 +443,6 @@
 }
 
 @keyframes cosmic-pulse {
-
   0%,
   100% {
     transform: scale(1);
@@ -448,7 +456,6 @@
 }
 
 @keyframes cosmic-float {
-
   0%,
   100% {
     transform: translateY(0);
@@ -460,7 +467,6 @@
 }
 
 @keyframes cosmic-glow {
-
   0%,
   100% {
     filter: drop-shadow(0 0 2px rgba(56, 189, 248, 0.5));
@@ -506,4 +512,92 @@
 /* Styles pour les hexagones */
 .hexagon {
   clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+
+/* Stars Animation for Registration Page */
+.register-page {
+  background-color: #000814;
+  background-image: radial-gradient(
+      circle at 60% 20%,
+      rgba(5, 29, 64, 0.7) 0%,
+      rgba(0, 8, 20, 0) 25%
+    ),
+    radial-gradient(
+      circle at 20% 80%,
+      rgba(19, 51, 100, 0.6) 0%,
+      rgba(0, 8, 20, 0) 30%
+    );
+  background-attachment: fixed;
+}
+
+.stars-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.star {
+  position: absolute;
+  background-color: #fff;
+  border-radius: 50%;
+  animation: pulse 10s ease-in-out infinite;
+}
+
+.shooting-star {
+  position: absolute;
+  background-color: white;
+  border-radius: 50%;
+  transform: rotate(45deg);
+  filter: blur(1px);
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+}
+
+@keyframes shootingStar {
+  0% {
+    opacity: 0;
+    transform: translateX(-100px) translateY(100px) rotate(45deg);
+    width: 0;
+  }
+  1% {
+    opacity: 1;
+  }
+  5% {
+    width: 100px;
+    opacity: 1;
+  }
+  10% {
+    transform: translateX(100px) translateY(-100px) rotate(45deg);
+    width: 0;
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100px) translateY(-100px) rotate(45deg);
+    width: 0;
+  }
+}
+
+.shooting-star-head {
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 0 8px 2px white, 0 0 24px 4px #fff8;
+  pointer-events: none;
 }

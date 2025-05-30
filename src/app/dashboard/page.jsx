@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChange, signOut } from "@/lib/firebase/auth";
 import { useRouter } from "next/navigation";
+import { usePageTransition } from "@/lib/hooks/usePageTransition";
 import { db } from "@/lib/firebase/config";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import {
@@ -78,6 +79,7 @@ const userProgress = {
 export default function DashboardPage() {
   const { language } = useLanguage();
   const router = useRouter();
+  const { navigateToProfile, navigateToSettings } = usePageTransition();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(true);
@@ -206,25 +208,23 @@ export default function DashboardPage() {
             <div className="flex items-center space-x-4">
               <LanguageSwitcher />
 
-              <Link href="/profile">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full bg-neon-blue/10 hover:bg-neon-blue/20"
-                >
-                  <User className="h-5 w-5 text-neon-blue" />
-                </Button>
-              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={navigateToProfile}
+                className="rounded-full bg-neon-blue/10 hover:bg-neon-blue/20"
+              >
+                <User className="h-5 w-5 text-neon-blue" />
+              </Button>
 
-              <Link href="/settings">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full bg-neon-blue/10 hover:bg-neon-blue/20"
-                >
-                  <Settings className="h-5 w-5 text-neon-blue" />
-                </Button>
-              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={navigateToSettings}
+                className="rounded-full bg-neon-blue/10 hover:bg-neon-blue/20"
+              >
+                <Settings className="h-5 w-5 text-neon-blue" />
+              </Button>
             </div>
           </header>
 
@@ -252,7 +252,7 @@ export default function DashboardPage() {
                       {/* Icône en arrière-plan */}
                       <div className="absolute -right-4 top-1/2 transform -translate-y-1/2 opacity-10 group-hover:opacity-15 transition-opacity">
                         {userProgress.weeklyLessons.completed ===
-                          userProgress.weeklyLessons.total ? (
+                        userProgress.weeklyLessons.total ? (
                           <CheckCircle className="text-neon-blue" size={200} />
                         ) : (
                           <Clock className="text-neon-blue/70" size={200} />
@@ -290,7 +290,7 @@ export default function DashboardPage() {
                       {/* Icône en arrière-plan */}
                       <div className="absolute -right-4 top-1/2 transform -translate-y-1/2 opacity-10 group-hover:opacity-15 transition-opacity">
                         {userProgress.weeklyExercises.completed ===
-                          userProgress.weeklyExercises.total ? (
+                        userProgress.weeklyExercises.total ? (
                           <CheckCircle className="text-neon-blue" size={200} />
                         ) : (
                           <Clock className="text-neon-blue/70" size={200} />
@@ -484,10 +484,11 @@ export default function DashboardPage() {
                           <div
                             className="h-1.5 rounded-full bg-neon-blue"
                             style={{
-                              width: `${(module.lessons.completed /
+                              width: `${
+                                (module.lessons.completed /
                                   module.lessons.total) *
                                 100
-                                }%`,
+                              }%`,
                             }}
                           ></div>
                         </div>
@@ -506,17 +507,18 @@ export default function DashboardPage() {
                           <div
                             className="h-1.5 rounded-full bg-neon-blue"
                             style={{
-                              width: `${(module.exercises.completed /
+                              width: `${
+                                (module.exercises.completed /
                                   module.exercises.total) *
                                 100
-                                }%`,
+                              }%`,
                             }}
                           ></div>
                         </div>
                       </div>
 
                       <div className="p-4 bg-cosmic-black/30 flex justify-center">
-                        <Link href={`/modules/${module.id}`}>
+                        <Link href={`/modules/1-la_terre`}>
                           <Button
                             variant="outline"
                             className="border-neon-blue/40 text-neon-blue hover:bg-neon-blue/10"

@@ -78,16 +78,6 @@ export function Interests({ form }) {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6"
     >
-      <div className="space-y-2">
-        <h2 className="text-2xl font-exo font-bold text-lunar-white">
-          {t?.interests || "Centres d'intérêt"}
-        </h2>
-        <p className="text-lunar-white/70 text-sm">
-          {t?.interestsDesc ||
-            "Sélectionnez les sujets qui vous intéressent le plus en astronomie."}
-        </p>
-      </div>
-
       <div className="space-y-4">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {interestOptions.map((interest) => (

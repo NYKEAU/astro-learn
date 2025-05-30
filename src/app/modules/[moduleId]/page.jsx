@@ -19,13 +19,18 @@ import {
   getDoc,
   orderBy,
 } from "firebase/firestore";
-import { Home, ArrowLeft, Book, Code } from "lucide-react";
+import { Home, ArrowLeft, Book, Code, Lock } from "lucide-react";
+import { useModuleAccess } from "@/lib/hooks/useModuleAccess";
 
 export default function ModulePage() {
   const params = useParams();
   const router = useRouter();
-  const { moduleId } = params;
+  const { moduleId: moduleSlug } = params;
   const { language } = useLanguage();
+  const { canAccessModule, getModuleAccessMessage } = useModuleAccess();
+
+  // Extraire l'ID réel du module à partir du slug (ex: "1-la_terre" -> "1")
+  const moduleId = moduleSlug.split("-")[0];
 
   const [moduleData, setModuleData] = useState(null);
   const [moduleParts, setModuleParts] = useState([]);
@@ -35,6 +40,7 @@ export default function ModulePage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userProgress, setUserProgress] = useState({});
+  const [hasAccess, setHasAccess] = useState(false);
 
   // Fonction pour récupérer les données du module
   const fetchModuleData = async (moduleId) => {
@@ -118,91 +124,102 @@ export default function ModulePage() {
     }
   };
 
-  // Vérifier l'état d'authentification et charger les données du module
+  // Vérifier l'état d'authentification
   useEffect(() => {
-    // Vérification de l'authentification
     const unsubscribe = onAuthStateChange((user) => {
       setIsAuthenticated(!!user);
       setUser(user);
       setLoading(false);
-
-      // Si l'utilisateur est authentifié, charger sa progression
-      if (user && moduleId) {
-        loadUserProgress(user.uid, moduleId);
-      }
     });
 
-    // Récupérer les données du module
-    const getModuleData = async () => {
-      setIsLoading(true);
-      const data = await fetchModuleData(moduleId);
+    return () => unsubscribe();
+  }, []);
 
-      if (data) {
-        setModuleData(data);
+  // Charger la progression de l'utilisateur si connecté
+  useEffect(() => {
+    if (user && moduleId) {
+      loadUserProgress(user.uid, moduleId);
+    }
+  }, [user, moduleId]);
 
-        // Vérifier si le module utilise la nouvelle structure
-        if (data.parts && data.parts.length > 0) {
-          setHasParts(true);
-          setModuleParts(data.parts);
-        } else {
-          // Ancienne structure - extraire les parties manuellement
-          const parts = [];
-          const partTitles = {};
-
-          // Extraire les titres des parties
-          Object.entries(data).forEach(([key, value]) => {
-            if (key.match(/^part\d+$/) && !key.includes(".")) {
-              const partNumber = key.replace("part", "");
-              partTitles[partNumber] = value;
-            }
-          });
-
-          // Extraire les questions par partie
-          const questions = {};
-
-          Object.entries(data).forEach(([key, value]) => {
-            if (key.match(/^part\d+\.\d+$/)) {
-              const [partKey, questionNumber] = key.split(".");
-              const partNumber = partKey.replace("part", "");
-
-              if (!questions[partNumber]) {
-                questions[partNumber] = [];
-              }
-
-              questions[partNumber].push({
-                id: `${partKey}.${questionNumber}`,
-                content: value,
-                order: parseInt(questionNumber),
-              });
-            }
-          });
-
-          // Créer les objets de partie
-          Object.keys(partTitles).forEach((partNumber) => {
-            parts.push({
-              id: `part${partNumber}`,
-              partNumber: parseInt(partNumber),
-              title: partTitles[partNumber],
-              lessons: questions[partNumber] || [],
-            });
-          });
-
-          // Trier les parties par numéro
-          parts.sort((a, b) => a.partNumber - b.partNumber);
-
-          setHasParts(parts.length > 0);
-          setModuleParts(parts);
-        }
-      }
-
-      setIsLoading(false);
-    };
-
+  // Vérifier l'accès au module
+  useEffect(() => {
     if (moduleId) {
+      const accessResult = canAccessModule(moduleId);
+      setHasAccess(accessResult);
+    }
+  }, [moduleId, isAuthenticated, user]);
+
+  // Récupérer les données du module
+  useEffect(() => {
+    if (moduleId) {
+      const getModuleData = async () => {
+        setIsLoading(true);
+        const data = await fetchModuleData(moduleId);
+
+        if (data) {
+          setModuleData(data);
+
+          // Vérifier si le module utilise la nouvelle structure
+          if (data.parts && data.parts.length > 0) {
+            setHasParts(true);
+            setModuleParts(data.parts);
+          } else {
+            // Ancienne structure - extraire les parties manuellement
+            const parts = [];
+            const partTitles = {};
+
+            // Extraire les titres des parties
+            Object.entries(data).forEach(([key, value]) => {
+              if (key.match(/^part\d+$/) && !key.includes(".")) {
+                const partNumber = key.replace("part", "");
+                partTitles[partNumber] = value;
+              }
+            });
+
+            // Extraire les questions par partie
+            const questions = {};
+
+            Object.entries(data).forEach(([key, value]) => {
+              if (key.match(/^part\d+\.\d+$/)) {
+                const [partKey, questionNumber] = key.split(".");
+                const partNumber = partKey.replace("part", "");
+
+                if (!questions[partNumber]) {
+                  questions[partNumber] = [];
+                }
+
+                questions[partNumber].push({
+                  id: `${partKey}.${questionNumber}`,
+                  content: value,
+                  order: parseInt(questionNumber),
+                });
+              }
+            });
+
+            // Créer les objets de partie
+            Object.keys(partTitles).forEach((partNumber) => {
+              parts.push({
+                id: `part${partNumber}`,
+                partNumber: parseInt(partNumber),
+                title: partTitles[partNumber],
+                lessons: questions[partNumber] || [],
+              });
+            });
+
+            // Trier les parties par numéro
+            parts.sort((a, b) => a.partNumber - b.partNumber);
+
+            setHasParts(parts.length > 0);
+            setModuleParts(parts);
+          }
+        }
+
+        setIsLoading(false);
+      };
+
       getModuleData();
     }
-
-    return () => unsubscribe();
   }, [moduleId]);
 
   // Charger la progression de l'utilisateur
@@ -341,6 +358,20 @@ export default function ModulePage() {
 
   return (
     <div className="min-h-screen bg-cosmic-black text-lunar-white">
+      {/* Message d'avertissement pour modules non autorisés */}
+      {moduleId !== "1" && !hasAccess && (
+        <div className="bg-red-500/20 text-white border-b border-red-500/50 py-2 px-4 text-center">
+          <div className="container mx-auto flex items-center justify-center">
+            <Lock className="w-4 h-4 mr-2 text-red-300" />
+            <p>
+              {language === "fr"
+                ? "Vous n'êtes pas autorisé à accéder à ce module. Le contenu affiché peut être limité."
+                : "You are not authorized to access this module. The content displayed may be limited."}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Fil d'Ariane avec le bouton Dashboard */}
       <header className="flex items-center justify-between p-4 border-b border-neon-blue/20">
         <div className="flex items-center space-x-2 text-sm">
@@ -404,8 +435,8 @@ export default function ModulePage() {
           >
             {getModuleDescription() ||
               (language === "fr"
-                ? `"Earth, the third planet from the Sun, is a dynamic world of land, water, and life. Its atmosphere, magnetic field, and plate tectonics make it uniquely habitable, supporting diverse ecosystems and human civilization."`
-                : `"Earth, the third planet from the Sun, is a dynamic world of land, water, and life. Its atmosphere, magnetic field, and plate tectonics make it uniquely habitable, supporting diverse ecosystems and human civilization."`)}
+                ? "Description non disponible"
+                : "Description not available")}
           </motion.p>
 
           {/* Tags */}
@@ -421,15 +452,15 @@ export default function ModulePage() {
                 {tag}
               </Badge>
             )) || (
-                <>
-                  <Badge className="bg-cosmic-black/30 hover:bg-cosmic-black/40 text-lunar-white border border-neon-blue/30 transition-colors">
-                    {language === "fr" ? "systèmeSolaire" : "solarSystem"}
-                  </Badge>
-                  <Badge className="bg-cosmic-black/30 hover:bg-cosmic-black/40 text-lunar-white border border-neon-blue/30 transition-colors">
-                    {language === "fr" ? "planètes" : "planets"}
-                  </Badge>
-                </>
-              )}
+              <>
+                <Badge className="bg-cosmic-black/30 hover:bg-cosmic-black/40 text-lunar-white border border-neon-blue/30 transition-colors">
+                  {language === "fr" ? "systèmeSolaire" : "solarSystem"}
+                </Badge>
+                <Badge className="bg-cosmic-black/30 hover:bg-cosmic-black/40 text-lunar-white border border-neon-blue/30 transition-colors">
+                  {language === "fr" ? "planètes" : "planets"}
+                </Badge>
+              </>
+            )}
           </motion.div>
         </motion.div>
 
@@ -474,26 +505,68 @@ export default function ModulePage() {
                       ></div>
                     </div>
 
+                    {/* Message d'accès si le module n'est pas accessible */}
+                    {!hasAccess && index > 0 && (
+                      <div className="mb-4 p-2 bg-red-500/10 rounded text-sm text-center flex items-center justify-center">
+                        <Lock className="w-4 h-4 mr-2 text-neon-blue" />
+                        <span>
+                          {getModuleAccessMessage(moduleId, !hasAccess)}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Boutons */}
                     <div className="grid grid-cols-2 gap-4 mt-4">
                       <Link
-                        href={`/modules/${moduleId}/lessons?part=${part.partNumber}`}
+                        href={
+                          hasAccess || index === 0
+                            ? `/modules/${moduleId}/lessons?part=${part.partNumber}`
+                            : "#"
+                        }
+                        onClick={(e) =>
+                          !hasAccess && index > 0 && e.preventDefault()
+                        }
                       >
                         <Button
                           variant="outline"
-                          className="w-full border-neon-blue/30 text-neon-blue hover:bg-neon-blue/10 flex items-center justify-center"
+                          className={`w-full border-neon-blue/30 text-neon-blue hover:bg-neon-blue/10 flex items-center justify-center ${
+                            !hasAccess && index > 0
+                              ? "opacity-50 cursor-not-allowed"
+                              : ""
+                          }`}
                         >
-                          <Book className="mr-2 h-4 w-4" />
+                          {!hasAccess && index > 0 ? (
+                            <Lock className="mr-2 h-4 w-4" />
+                          ) : (
+                            <Book className="mr-2 h-4 w-4" />
+                          )}
                           {language === "fr"
                             ? "Voir la théorie"
                             : "View theory"}
                         </Button>
                       </Link>
                       <Link
-                        href={`/modules/${moduleId}/exercises?part=${part.partNumber}`}
+                        href={
+                          hasAccess || index === 0
+                            ? `/modules/${moduleId}/exercises?part=${part.partNumber}`
+                            : "#"
+                        }
+                        onClick={(e) =>
+                          !hasAccess && index > 0 && e.preventDefault()
+                        }
                       >
-                        <Button className="w-full bg-neon-blue hover:bg-neon-blue/80 text-cosmic-black flex items-center justify-center">
-                          <Code className="mr-2 h-4 w-4" />
+                        <Button
+                          className={`w-full bg-neon-blue hover:bg-neon-blue/80 text-cosmic-black flex items-center justify-center ${
+                            !hasAccess && index > 0
+                              ? "opacity-50 cursor-not-allowed"
+                              : ""
+                          }`}
+                        >
+                          {!hasAccess && index > 0 ? (
+                            <Lock className="mr-2 h-4 w-4" />
+                          ) : (
+                            <Code className="mr-2 h-4 w-4" />
+                          )}
                           {language === "fr"
                             ? "Faire les exercices"
                             : "Do exercises"}

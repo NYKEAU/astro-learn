@@ -19,6 +19,27 @@ export const profileService = {
     }
   },
 
+  createOrUpdateProfileInfos: async (userId, profileData) => {
+    try {
+      const profileRef = doc(db, "profilesInfos", userId);
+      await setDoc(
+        profileRef,
+        {
+          ...profileData,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+      return { success: true };
+    } catch (error) {
+      console.error("Error creating/updating profilesInfos:", error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  },
+
   getUserProfile: async (userId) => {
     try {
       const userRef = doc(db, "users", userId);

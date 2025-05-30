@@ -1,0 +1,209 @@
+name: PR Quality Check
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+
+env:
+  NODE_VERSION: "18.x"
+
+jobs:
+  # Vérification des changements
+  changes:
+    name: 🔍 Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      src: ${{ steps.changes.outputs.src }}
+      tests: ${{ steps.changes.outputs.tests }}
+      config: ${{ steps.changes.outputs.config }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Detect changes
+        uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            src:
+              - 'src/**'
+              - 'app/**'
+              - 'components/**'
+            tests:
+              - '**/*.test.js'
+              - '**/*.test.jsx'
+              - '**/*.spec.js'
+              - 'jest.config.js'
+              - 'jest.setup.js'
+            config:
+              - 'package.json'
+              - 'package-lock.json'
+              - 'next.config.mjs'
+              - '.github/workflows/**'
+
+  # Tests et qualité du code
+  quality:
+    name: 🧪 Code Quality
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.tests == 'true'
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Run ESLint
+        run: npm run lint
+
+      - name: 🧪 Run tests with coverage
+        run: npm test -- --coverage --watchAll=false
+
+      - name: 📊 Check coverage threshold
+        run: |
+          COVERAGE=$(npm test -- --coverage --watchAll=false --silent | grep "Lines" | awk '{print $4}' | sed 's/%//')
+          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+            echo "❌ Coverage is below 70%: $COVERAGE%"
+            exit 1
+          else
+            echo "✅ Coverage is acceptable: $COVERAGE%"
+          fi
+
+  # Build de vérification
+  build-check:
+    name: 🏗️ Build Check
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.config == 'true'
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🏗️ Test build
+        run: npm run build
+
+      - name: 🔥 Test Firebase export build
+        run: npm run build:firebase
+
+  # Déploiement preview
+  preview-deploy:
+    name: 🚀 Preview Deploy
+    runs-on: ubuntu-latest
+    needs: [quality, build-check]
+    if: success()
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔧 Create environment file
+        run: |
+          echo "NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}" >> .env.local
+          echo "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}" >> .env.local
+          echo "NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}" >> .env.local
+          echo "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}" >> .env.local
+          echo "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}" >> .env.local
+          echo "NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}" >> .env.local
+
+      - name: 🏗️ Build for preview
+        run: npm run build:firebase
+
+      - name: 🔧 Setup Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: 🚀 Deploy to preview channel
+        run: |
+          firebase use ${{ secrets.FIREBASE_PROJECT_ID }} --token "${{ secrets.FIREBASE_TOKEN }}"
+          firebase hosting:channel:deploy pr-${{ github.event.number }} --expires 7d --token "${{ secrets.FIREBASE_TOKEN }}" || true
+
+      - name: 💬 Comment PR with preview link
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && comment.body.includes('🚀 Preview Deploy')
+            );
+
+            const previewUrl = `https://${{ secrets.FIREBASE_PROJECT_ID }}--pr-${{ github.event.number }}-${context.sha.substring(0, 7)}.web.app`;
+
+            const body = `## 🚀 Preview Deploy
+
+            Your preview deployment is ready! 
+
+            📱 **Preview URL:** ${previewUrl}
+
+            This preview will be automatically deleted in 7 days.
+
+            Built from commit: \`${context.sha.substring(0, 7)}\``;
+
+            if (botComment) {
+              github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
+
+  # Statut final
+  pr-status:
+    name: 📊 PR Status
+    runs-on: ubuntu-latest
+    needs: [quality, build-check, preview-deploy]
+    if: always()
+
+    steps:
+      - name: ✅ All checks passed
+        if: needs.quality.result == 'success' && needs.build-check.result == 'success'
+        run: |
+          echo "🎉 All quality checks passed!"
+          echo "PR is ready for review."
+
+      - name: ❌ Some checks failed
+        if: needs.quality.result != 'success' || needs.build-check.result != 'success'
+        run: |
+          echo "❌ Some checks failed:"
+          echo "Quality: ${{ needs.quality.result }}"
+          echo "Build: ${{ needs.build-check.result }}"
+          exit 1

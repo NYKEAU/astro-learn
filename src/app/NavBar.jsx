@@ -6,11 +6,15 @@ import { useState, useEffect } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
 import { useLanguage } from "@/lib/LanguageContext";
+import { usePageTransition } from "@/lib/hooks/usePageTransition";
+import { useRouter } from "next/navigation";
 
 const NavBar = ({ user }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const pathname = usePathname();
   const { language, toggleLanguage } = useLanguage();
+  const { navigateToProfile, navigateToSettings } = usePageTransition();
+  const router = useRouter();
 
   // Liste des routes où la NavBar ne doit pas être affichée
   const hiddenRoutes = ["/register"];
@@ -68,6 +72,14 @@ const NavBar = ({ user }) => {
             {language === "fr" ? "Modules" : "Modules"}
           </Link>
           <Link
+            href="/universe"
+            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${isActive(
+              "/universe"
+            )}`}
+          >
+            {language === "fr" ? "Mon Univers" : "My Universe"}
+          </Link>
+          <Link
             href="/dashboard"
             className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${isActive(
               "/dashboard"
@@ -100,18 +112,18 @@ const NavBar = ({ user }) => {
                 </button>
                 <div className="absolute right-0 mt-2 w-48 bg-cosmic-black border border-neon-blue/30 rounded-md shadow-lg overflow-hidden z-10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-right">
                   <div className="py-1">
-                    <Link
-                      href="/profile"
-                      className="block px-4 py-2 text-sm text-lunar-white/80 hover:text-neon-blue hover:bg-cosmic-black/60"
+                    <button
+                      onClick={navigateToProfile}
+                      className="block w-full text-left px-4 py-2 text-sm text-lunar-white/80 hover:text-neon-blue hover:bg-cosmic-black/60"
                     >
                       {language === "fr" ? "Mon Profil" : "My Profile"}
-                    </Link>
-                    <Link
-                      href="/settings"
-                      className="block px-4 py-2 text-sm text-lunar-white/80 hover:text-neon-blue hover:bg-cosmic-black/60"
+                    </button>
+                    <button
+                      onClick={navigateToSettings}
+                      className="block w-full text-left px-4 py-2 text-sm text-lunar-white/80 hover:text-neon-blue hover:bg-cosmic-black/60"
                     >
                       {language === "fr" ? "Paramètres" : "Settings"}
-                    </Link>
+                    </button>
                     <button
                       onClick={handleLogout}
                       className="block w-full text-left px-4 py-2 text-sm text-lunar-white/80 hover:text-cosmic-red hover:bg-cosmic-black/60"
@@ -200,6 +212,14 @@ const NavBar = ({ user }) => {
               {language === "fr" ? "Modules" : "Modules"}
             </Link>
             <Link
+              href="/universe"
+              className={`px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 ${isActive(
+                "/universe"
+              )}`}
+            >
+              {language === "fr" ? "Mon Univers" : "My Universe"}
+            </Link>
+            <Link
               href="/dashboard"
               className={`px-3 py-2 rounded-md text-base font-medium transition-colors duration-200 ${isActive(
                 "/dashboard"
@@ -221,12 +241,12 @@ const NavBar = ({ user }) => {
                       {user.displayName || user.email}
                     </span>
                   </div>
-                  <Link
-                    href="/profile"
-                    className="block px-3 py-2 rounded-md text-base text-lunar-white/80 hover:text-neon-blue transition-colors duration-200"
+                  <button
+                    onClick={navigateToProfile}
+                    className="block w-full text-left px-3 py-2 rounded-md text-base text-lunar-white/80 hover:text-neon-blue transition-colors duration-200"
                   >
                     {language === "fr" ? "Mon Profil" : "My Profile"}
-                  </Link>
+                  </button>
                   <button
                     onClick={handleLogout}
                     className="block w-full text-left px-3 py-2 rounded-md text-base text-lunar-white/80 hover:text-cosmic-red transition-colors duration-200"

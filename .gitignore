@@ -9,13 +9,16 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+.yarn/install-state.gz
 
 # testing
 /coverage
+*.test.log
 
 # next.js
 /.next/
 /out/
+.next
 
 # production
 /build
@@ -32,10 +35,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env*.local
+.vercel.json
 
 # vercel
 .vercel
@@ -45,7 +46,12 @@ yarn-error.log*
 next-env.d.ts
 
 # firebase
-serviceAccountKey.json
+.firebase/
+.firebaserc
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+storage.rules
 
 # IDE
 .idea
@@ -53,5 +59,27 @@ serviceAccountKey.json
 *.swp
 *.swo
 
-# firebase-adminsdk.json
-# firebase-config.js
+# sensitive files
+serviceAccountKey.json
+*.key
+*.pem
+.env.*.local
+
+# development and debug files
+**/*.test.js.snap
+/exports
+/migration-backups
+.cursor/
+.swc/
+
+# OS
+Thumbs.db
+
+# logs
+logs
+*.log
+
+# temporary files
+temp/
+tmp/
+*.tmp

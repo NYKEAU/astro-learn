@@ -3,8 +3,32 @@ import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/lib/LanguageContext";
 
 /**
- * Composant qui analyse et affiche différents types d'exercices (QCM, texte à trous)
- * basé sur le format du texte d'entrée
+ * Composant qui analyse et affiche différents types d'exercices interactifs
+ * Supporte les QCM, texte à trous avec ou sans propositions
+ *
+ * @component
+ * @param {Object} props - Propriétés du composant
+ * @param {string} props.content - Contenu de l'exercice à analyser et afficher
+ * @param {Function} props.onComplete - Callback appelé lors de la soumission d'une réponse
+ * @param {boolean} [props.showFeedback=false] - Indique si le feedback doit être affiché
+ * @param {Function} [props.setShowFeedback] - Fonction pour contrôler l'affichage du feedback
+ * @param {boolean} [props.isCorrect=false] - Indique si la réponse est correcte
+ * @param {Function} [props.setIsCorrect] - Fonction pour définir si la réponse est correcte
+ * @returns {JSX.Element|null} Composant d'exercice rendu ou null si pas de contenu
+ *
+ * @example
+ * // QCM
+ * <ExerciseParser
+ *   content="Quelle est la plus grande planète ?\n1. Jupiter\n2. Saturne\n3. Neptune"
+ *   onComplete={(result) => console.log(result)}
+ * />
+ *
+ * @example
+ * // Texte à trous
+ * <ExerciseParser
+ *   content="La [Terre] est la [troisième] planète du système solaire."
+ *   onComplete={(result) => console.log(result)}
+ * />
  */
 export const ExerciseParser = ({
   content,
@@ -15,13 +39,30 @@ export const ExerciseParser = ({
   setIsCorrect = () => {},
 }) => {
   const { language } = useLanguage();
+
+  /** @type {[string|null, Function]} Type d'exercice détecté */
   const [exerciseType, setExerciseType] = useState(null);
+
+  /** @type {[Object|null, Function]} Contenu parsé de l'exercice */
   const [parsedContent, setParsedContent] = useState(null);
+
+  /** @type {[any, Function]} Réponse de l'utilisateur */
   const [userAnswer, setUserAnswer] = useState(null);
+
+  /** @type {[number[], Function]} Options sélectionnées pour les QCM */
   const [selectedOptions, setSelectedOptions] = useState([]);
+
+  /** @type {[Object, Function]} Réponses pour les textes à trous */
   const [fillAnswers, setFillAnswers] = useState({});
 
-  // Analyser le contenu pour détecter le type d'exercice
+  /**
+   * Analyse le contenu pour détecter automatiquement le type d'exercice
+   * Types supportés:
+   * - "mcq": QCM avec options numérotées (1., 2., 3.)
+   * - "fill-blank": Texte à trous avec saisie libre [réponse]
+   * - "fill-blank-choice": Texte à trous avec propositions []<option>
+   * - "text": Texte simple sans interaction
+   */
   useEffect(() => {
     if (!content) return;
 
@@ -84,7 +125,10 @@ export const ExerciseParser = ({
     }
   }, [content]);
 
-  // Gérer la soumission d'une réponse QCM
+  /**
+   * Gère la sélection d'une option dans un QCM
+   * @param {number} optionIndex - Index de l'option sélectionnée
+   */
   const handleMCQSelect = (optionIndex) => {
     if (showFeedback) return;
 
@@ -107,7 +151,10 @@ export const ExerciseParser = ({
     }
   };
 
-  // Vérifier la réponse QCM
+  /**
+   * Vérifie la réponse d'un QCM et déclenche le callback onComplete
+   * Note: Logique de correction simplifiée à adapter selon les données réelles
+   */
   const checkMCQAnswer = () => {
     // Exemple: correction simplifiée, à adapter selon les données réelles
     // Ici on suppose que la première option est correcte à des fins de démonstration
@@ -124,7 +171,11 @@ export const ExerciseParser = ({
     }
   };
 
-  // Gérer la saisie de texte pour texte à trous
+  /**
+   * Gère la saisie de texte pour les exercices à trous
+   * @param {number} index - Index du trou à remplir
+   * @param {string} value - Valeur saisie par l'utilisateur
+   */
   const handleBlankInput = (index, value) => {
     setFillAnswers({
       ...fillAnswers,
@@ -132,7 +183,10 @@ export const ExerciseParser = ({
     });
   };
 
-  // Vérifier la réponse texte à trous
+  /**
+   * Vérifie la réponse d'un exercice à trous et déclenche le callback onComplete
+   * Supporte la saisie libre et les choix multiples
+   */
   const checkFillAnswer = () => {
     // Pour texte à trous avec saisie libre
     if (exerciseType === "fill-blank") {

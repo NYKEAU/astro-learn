@@ -8,7 +8,7 @@ import { useLanguage } from "@/lib/LanguageContext";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { motion } from "framer-motion";
 import { onAuthStateChange } from "@/lib/firebase/auth";
-import { db } from "@/lib/firebase/config";
+import { db, isProduction } from "@/lib/firebase/config";
 import {
   doc,
   getDoc,
@@ -18,6 +18,24 @@ import {
   getDocs,
   orderBy,
 } from "firebase/firestore";
+import { useModuleAccess } from "@/lib/hooks/useModuleAccess";
+import { Lock } from "lucide-react";
+import { Pie } from "react-chartjs-2";
+import { Chart, ArcElement, Tooltip, Legend } from "chart.js";
+import {
+  saveExerciseAnswer,
+  getModuleProgress,
+  initializeModuleProgress,
+} from "@/lib/firebase/progress";
+import { isCloseEnough } from "@/lib/utils/index";
+Chart.register(ArcElement, Tooltip, Legend);
+
+// Fonction de logging conditionnelle
+const debugLog = (...args) => {
+  if (!isProduction) {
+    console.log(...args);
+  }
+};
 
 // Simplifier complètement la fonction parseQuestionContent
 function parseQuestionContent(content) {
@@ -92,103 +110,77 @@ const saveUserProgress = async (
   partId,
   exerciseId,
   isCorrect,
-  userAnswer
+  userAnswer,
+  totalExercisesInModule = null
 ) => {
-  if (!userId || !moduleId || !partId || !exerciseId) return;
+  if (!userId || !moduleId || !partId || !exerciseId) {
+    console.error("❌ Paramètres manquants pour saveUserProgress");
+    return null;
+  }
 
   try {
-    const partNumber = partId.replace("part", "");
-    const progressRef = doc(db, "users", userId, "progress", moduleId);
-    const progressSnap = await getDoc(progressRef);
+    debugLog(
+      `💾 saveUserProgress appelé: Module ${moduleId}, Partie ${partId}, Exercice ${exerciseId}`
+    );
+    debugLog(`📊 totalExercisesInModule reçu: ${totalExercisesInModule}`);
 
-    let progressData = progressSnap.exists() ? progressSnap.data() : {};
-
-    // Initialiser les données pour cette partie si nécessaire
-    if (!progressData[partNumber]) {
-      progressData[partNumber] = {
-        totalAnswered: 0,
-        correctAnswers: 0,
-        completedExercises: [],
-        answers: {},
-      };
-    }
-
-    // Vérifier si cet exercice a déjà été répondu
-    const wasAnsweredBefore =
-      progressData[partNumber].answers &&
-      progressData[partNumber].answers[exerciseId] !== undefined;
-
-    // Mettre à jour les réponses
-    if (!progressData[partNumber].answers) {
-      progressData[partNumber].answers = {};
-    }
-
-    // Stocker la réponse
-    progressData[partNumber].answers[exerciseId] = {
-      isCorrect,
+    const result = await saveExerciseAnswer(
+      userId,
+      moduleId,
+      partId,
+      exerciseId,
       userAnswer,
-      timestamp: new Date().toISOString(),
-    };
+      isCorrect,
+      totalExercisesInModule
+    );
 
-    // Mettre à jour les compteurs
-    if (!wasAnsweredBefore) {
-      progressData[partNumber].totalAnswered++;
+    if (result) {
+      debugLog(`✅ Progression sauvegardée avec succès`);
+      debugLog(
+        `📊 Score actuel: ${result.score}/${result.totalExercises} (${result.percentage}%)`
+      );
 
-      if (!progressData[partNumber].completedExercises.includes(exerciseId)) {
-        progressData[partNumber].completedExercises.push(exerciseId);
+      // Si le module vient d'être complété, afficher une notification
+      if (result.completed && result.percentage >= 80) {
+        debugLog(`🎉 Module ${moduleId} complété !`);
       }
     }
 
-    if (
-      isCorrect &&
-      (!wasAnsweredBefore ||
-        (wasAnsweredBefore &&
-          !progressData[partNumber].answers[exerciseId].isCorrect))
-    ) {
-      progressData[partNumber].correctAnswers++;
-    } else if (
-      !isCorrect &&
-      wasAnsweredBefore &&
-      progressData[partNumber].answers[exerciseId].isCorrect
-    ) {
-      // Si l'exercice était correct avant mais ne l'est plus
-      progressData[partNumber].correctAnswers--;
-    }
-
-    // Sauvegarder les données mises à jour
-    await setDoc(progressRef, progressData);
-
-    console.log(
-      `Progression sauvegardée pour l'exercice ${exerciseId} de la partie ${partNumber}`
-    );
-    return progressData;
+    return result;
   } catch (error) {
-    console.error("Erreur lors de la sauvegarde de la progression:", error);
+    console.error("❌ Erreur lors de la sauvegarde:", error);
     return null;
   }
 };
 
 // Fonction pour charger la progression
 const loadUserProgress = async (userId, moduleId) => {
-  if (!userId || !moduleId) return {};
+  if (!userId || !moduleId) {
+    console.error("❌ Paramètres manquants pour loadUserProgress");
+    return {};
+  }
 
   try {
-    const progressRef = doc(db, "users", userId, "progress", moduleId);
-    const progressSnap = await getDoc(progressRef);
+    debugLog(`📊 Chargement de la progression: Module ${moduleId}`);
 
-    if (progressSnap.exists()) {
-      return progressSnap.data();
+    const progressData = await getModuleProgress(userId, moduleId);
+
+    if (progressData) {
+      debugLog(`✅ Progression chargée:`, progressData);
+      return progressData;
+    } else {
+      debugLog(`📭 Aucune progression trouvée, initialisation...`);
+      await initializeModuleProgress(userId, moduleId);
+      return {};
     }
-
-    return {};
   } catch (error) {
-    console.error("Erreur lors du chargement de la progression:", error);
+    console.error("❌ Erreur lors du chargement:", error);
     return {};
   }
 };
 
 // Modifier les segments dans formatFillContent
-function formatFillContent(content, currentAnswer = "", handleValueChange) {
+function formatFillContent(content, currentAnswer = "", onAnswerChange) {
   if (!content) return "";
 
   let formattedContent = content;
@@ -236,11 +228,11 @@ function formatFillContent(content, currentAnswer = "", handleValueChange) {
             className="bg-cosmic-black border border-neon-blue/50 focus:border-neon-blue px-2 py-1 mx-1 text-neon-blue rounded outline-none"
             value={selectValue}
             onChange={(e) => {
-              // Mettre à jour uniquement ce select sans changer de question
+              // Mettre à jour uniquement ce select et sauvegarder automatiquement
               const newSelectValues = [...answerValues];
               newSelectValues[index] = e.target.value;
-              // Joindre toutes les valeurs avec un séparateur pour les stocker dans un seul champ
-              handleValueChange(newSelectValues.join("|"), false);
+              const newAnswer = newSelectValues.join("|");
+              onAnswerChange(newAnswer);
             }}
           >
             <option value="">Choisir...</option>
@@ -287,16 +279,9 @@ function formatFillContent(content, currentAnswer = "", handleValueChange) {
             className="bg-transparent border-b-2 border-neon-blue/70 focus:border-neon-blue px-2 py-0 mx-1 text-neon-blue outline-none min-w-24 inline-block"
             value={currentAnswer || ""}
             onChange={(e) => {
-              // Mettre à jour la valeur localement SANS déclencher le passage à la question suivante
-              e.persist();
+              // Mettre à jour la valeur localement SANS sauvegarder
               const inputValue = e.target.value;
-              handleValueChange(inputValue, false); // Ajout d'un second paramètre pour indiquer de ne pas passer à la question suivante
-            }}
-            onKeyDown={(e) => {
-              // Soumettre la réponse sur Entrée
-              if (e.key === "Enter") {
-                handleValueChange(e.target.value, true);
-              }
+              onAnswerChange(inputValue);
             }}
             data-correct={correctAnswer}
           />
@@ -352,11 +337,84 @@ function extractQCMOptions(content) {
   return options;
 }
 
+// Helpers pour affichage et validation
+function normalize(str) {
+  return str
+    .normalize("NFD")
+    .replace(/[ -\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/gi, "");
+}
+function renderFillText(question, value, onChange) {
+  const match = question.content.match(/\[[^\]]*\]/);
+  const parts = question.content.split(/\[[^\]]*\]/);
+  return (
+    <span>
+      {parts[0]}
+      <input
+        type="text"
+        className="inline-block w-48 px-2 py-1 rounded border-2 border-neon-blue/70 bg-cosmic-black text-neon-blue text-xl font-mono mx-2"
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {parts[1]}
+    </span>
+  );
+}
+function renderFillDragText(question, value, onChange) {
+  const cleanedContent = question.content.replace(/<[^>]+>/g, "");
+  const parts = cleanedContent.split("[]");
+  const options = question.options || [];
+  const answerValues = Array.isArray(value)
+    ? value
+    : value
+    ? value.split("|")
+    : [];
+  return (
+    <span>
+      {parts.map((part, i) => (
+        <span key={`part-${i}`}>
+          {part}
+          {i < parts.length - 1 && (
+            <select
+              key={`select-${i}`}
+              className="bg-cosmic-black border border-neon-blue/50 focus:border-neon-blue px-2 py-1 mx-1 text-neon-blue rounded outline-none"
+              value={answerValues[i] || ""}
+              onChange={(e) => {
+                const newAnswers = [...answerValues];
+                newAnswers[i] = e.target.value;
+                onChange(newAnswers.join("|"));
+              }}
+            >
+              <option value="">Choisir...</option>
+              {options.map((opt, idx) => (
+                <option
+                  key={idx}
+                  value={opt}
+                  disabled={
+                    answerValues.includes(opt) && answerValues[i] !== opt
+                  }
+                >
+                  {opt}
+                </option>
+              ))}
+            </select>
+          )}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export default function ExercisesPage() {
   const params = useParams();
-  const { moduleId } = params;
+  const { moduleId: moduleSlug } = params;
   const { language } = useLanguage();
   const router = useRouter();
+  const { canAccessModule } = useModuleAccess();
+
+  // Extraire l'ID réel du module à partir du slug (ex: "1-la_terre" -> "1")
+  const moduleId = moduleSlug.split("-")[0];
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
@@ -376,6 +434,7 @@ export default function ExercisesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPart, setSelectedPart] = useState("part1"); // Partie sélectionnée par défaut
   const [availableParts, setAvailableParts] = useState([]); // Liste des parties disponibles
+  const [hasAccess, setHasAccess] = useState(false);
 
   // Vérifier l'authentification
   useEffect(() => {
@@ -383,14 +442,24 @@ export default function ExercisesPage() {
       setIsAuthenticated(!!user);
       setUser(user);
       setLoading(false);
-
-      if (!user) {
-        router.push("/register");
-      }
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, []);
+
+  // Vérifier l'accès au module et rediriger si nécessaire
+  useEffect(() => {
+    if (moduleId) {
+      const moduleAccess = canAccessModule(moduleId);
+      setHasAccess(moduleAccess);
+
+      // Rediriger si l'utilisateur n'a pas accès au module, sauf pour "1"
+      if (!moduleAccess && moduleId !== "1") {
+        console.log("Accès refusé au module:", moduleId);
+        router.push("/modules");
+      }
+    }
+  }, [moduleId, isAuthenticated, user, router]);
 
   // Charger le contenu du module et les questions
   useEffect(() => {
@@ -429,6 +498,7 @@ export default function ExercisesPage() {
           id: doc.id,
           ...doc.data(),
         }));
+        console.log("Parts Firestore:", parts);
         setAvailableParts(parts);
 
         // Si aucune partie n'est définie, utiliser la première
@@ -443,6 +513,7 @@ export default function ExercisesPage() {
         const selectedPartDoc = partsSnapshot.docs.find(
           (doc) => doc.id === selectedPart
         );
+        console.log("Selected part:", selectedPart);
 
         if (selectedPartDoc) {
           const partData = {
@@ -462,6 +533,10 @@ export default function ExercisesPage() {
           );
           const exercisesQuery = query(exercisesRef, orderBy("order"));
           const exercisesSnapshot = await getDocs(exercisesQuery);
+          console.log(
+            "Exercices Firestore:",
+            exercisesSnapshot.docs.map((doc) => doc.data())
+          );
 
           if (!exercisesSnapshot.empty) {
             exercisesSnapshot.docs.forEach((doc) => {
@@ -476,54 +551,66 @@ export default function ExercisesPage() {
                 ...exerciseData,
               };
 
-              // Simplifier l'analyse du contenu - si contient 1. et 2., c'est un QCM
-              if (
-                question.content &&
-                question.content.includes("1.") &&
-                question.content.includes("2.")
-              ) {
-                const parsedQuestion = parseQuestionContent(question.content);
-                question.type = "qcm";
-                question.content = parsedQuestion.content;
-                question.options = parsedQuestion.options;
-                question.correctOption = parsedQuestion.options[0]; // Par défaut première option
+              if (question.type === "qcm") {
+                if (!question.options && question.content) {
+                  question.options = extractQCMOptions(question.content);
+                  question.correctOption = question.options[0];
+                }
+                allExercises.push(question);
+              } else if (question.type === "fill") {
+                if (!question.correctAnswer && question.content) {
+                  const match = question.content.match(/\[([^\]]+)\]/);
+                  question.correctAnswer = match ? match[1] : "";
+                }
+                allExercises.push(question);
+              } else if (question.type === "fillDrag") {
+                if (!question.options && question.content) {
+                  const matches = question.content.match(/<([^>]+)>/g) || [];
+                  question.options = matches.map((m) =>
+                    m.replace(/<|>/g, "").trim()
+                  );
+                }
+                if (!question.correctAnswer && question.content) {
+                  const match = question.content.match(/\[([^\]]+)\]/);
+                  question.correctAnswer = match ? match[1] : "";
+                }
+                allExercises.push(question);
               }
-              // Si le type n'est pas déjà défini, utiliser parseQuestionContent
-              else if (!question.type || question.type === "text") {
-                const parsedQuestion = parseQuestionContent(question.content);
-                Object.assign(question, parsedQuestion);
-              }
-
-              // Ajouter tous les exercices, y compris les textes
-              allExercises.push(question);
             });
           }
         }
 
+        console.log("allExercises:", allExercises);
         // Trier les exercices par ordre
         allExercises.sort((a, b) => a.order - b.order);
 
         if (allExercises.length > 0) {
+          console.log("setQuestions:", allExercises);
           setQuestions(allExercises);
 
           // Charger la progression si l'utilisateur est connecté
           if (user) {
             const progressData = await loadUserProgress(user.uid, moduleId);
-            if (progressData) {
-              // Initialiser les réponses de l'utilisateur à partir de la progression
+            if (progressData && progressData.parts) {
+              // Initialiser les réponses de l'utilisateur à partir de la nouvelle structure
               const answers = {};
 
               allExercises.forEach((exercise, index) => {
-                const partNumber = exercise.partNumber;
+                const partId = exercise.partId;
                 const exerciseId = exercise.id;
 
+                // Vérifier si la réponse existe dans la nouvelle structure
                 if (
-                  progressData[partNumber] &&
-                  progressData[partNumber].answers &&
-                  progressData[partNumber].answers[exerciseId]
+                  progressData.parts[partId] &&
+                  progressData.parts[partId][exerciseId]
                 ) {
-                  answers[index] =
-                    progressData[partNumber].answers[exerciseId].userAnswer;
+                  const exerciseData = progressData.parts[partId][exerciseId];
+                  answers[index] = exerciseData.userAnswer;
+                  console.log(
+                    `📝 Réponse chargée pour ${exerciseId}: ${
+                      exerciseData.userAnswer
+                    } (${exerciseData.isCorrect ? "✅" : "❌"})`
+                  );
                 }
               });
 
@@ -543,18 +630,34 @@ export default function ExercisesPage() {
               }
 
               setCurrentStep(lastUnansweredIndex);
+              console.log(
+                `🎯 Progression chargée: ${Object.keys(answers).length}/${
+                  allExercises.length
+                } exercices complétés`
+              );
+            } else {
+              console.log("Aucune progression trouvée, démarrage à zéro");
             }
           }
+        } else {
+          console.log("Aucun exercice trouvé pour cette partie.");
         }
       } catch (error) {
         console.error("Erreur lors du chargement du module:", error);
+        // En cas d'erreur de permissions, rediriger
+        if (error.code === "permission-denied") {
+          console.log(
+            "Erreur de permissions, redirection vers la liste des modules"
+          );
+          router.push("/modules");
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchModule();
-  }, [moduleId, router, user, selectedPart]);
+  }, [moduleId, router, user, selectedPart, isAuthenticated]);
 
   // Simplifier la logique de détection QCM dans l'useEffect
   useEffect(() => {
@@ -591,26 +694,95 @@ export default function ExercisesPage() {
   };
 
   // Gérer la soumission des réponses
-  const handleAnswerSubmit = (answer, shouldAdvance = false) => {
+  const handleAnswerSubmit = async (answer, shouldAdvance = false) => {
     if (!user || !moduleId || !questions[currentStep]) return;
 
-    // Mise à jour des réponses de l'utilisateur sans feedback immédiat
+    console.log(
+      `🎯 handleAnswerSubmit appelé - Question ${currentStep + 1}/${
+        questions.length
+      }`
+    );
+    console.log(`📝 Réponse: "${answer}"`);
+
+    // Mise à jour des réponses de l'utilisateur
     const updatedUserAnswers = { ...userAnswers };
     updatedUserAnswers[currentStep] = answer;
     setUserAnswers(updatedUserAnswers);
 
-    // Passer automatiquement à la question suivante uniquement si shouldAdvance est true
+    // Déterminer si la réponse est correcte
+    const question = questions[currentStep];
+    let isCorrect = false;
+
+    if (question.type === "qcm") {
+      isCorrect = answer === question.correctOption;
+    } else if (question.type === "fill") {
+      isCorrect = isCloseEnough(answer, question.correctAnswer);
+    } else if (question.type === "fillDrag") {
+      const userVals = (answer || "").split("|");
+      const correctVals = (question.correctAnswer || "").split("|");
+      isCorrect =
+        userVals.length === correctVals.length &&
+        userVals.every(
+          (ans, i) => normalize(ans) === normalize(correctVals[i])
+        );
+    }
+
+    console.log(`✅ Réponse ${isCorrect ? "correcte" : "incorrecte"}`);
+
+    // Sauvegarder immédiatement la progression
+    try {
+      console.log(
+        `💾 Sauvegarde immédiate avec totalExercises: ${questions.length}`
+      );
+
+      const progressResult = await saveUserProgress(
+        user.uid,
+        moduleId,
+        question.partId,
+        question.id,
+        isCorrect,
+        answer,
+        questions.length
+      );
+
+      if (progressResult) {
+        console.log(
+          `📊 Progression mise à jour: ${progressResult.score}/${progressResult.totalExercises} (${progressResult.percentage}%)`
+        );
+
+        // Afficher une notification si le module vient d'être complété
+        if (progressResult.completed && progressResult.percentage >= 80) {
+          console.log(`🎉 Module ${moduleId} complété !`);
+          // TODO: Ajouter une vraie notification UI
+        }
+      }
+    } catch (error) {
+      console.error("❌ Erreur lors de la sauvegarde immédiate:", error);
+    }
+
+    // Passer automatiquement à la question suivante si demandé
     if (shouldAdvance && currentStep < questions.length - 1) {
       setCurrentStep(currentStep + 1);
     }
   };
 
-  // Nouvelle fonction pour soumettre toutes les réponses à la fin
+  // Fonction pour mettre à jour les réponses localement sans sauvegarder
+  const updateUserAnswer = (answer) => {
+    const updatedUserAnswers = { ...userAnswers };
+    updatedUserAnswers[currentStep] = answer;
+    setUserAnswers(updatedUserAnswers);
+  };
+
+  // Fonction pour calculer et afficher les résultats finaux
   const submitAllAnswers = () => {
     if (!user || !moduleId) return;
     setIsSaving(true);
 
-    // Calculer les résultats
+    console.log(
+      `🎯 Calcul des résultats finaux - Total questions: ${questions.length}`
+    );
+
+    // Calculer les résultats (la progression est déjà sauvegardée à chaque question)
     const results = {
       total: questions.length,
       correct: 0,
@@ -618,7 +790,7 @@ export default function ExercisesPage() {
       percentage: 0,
     };
 
-    // Vérifier chaque réponse
+    // Vérifier chaque réponse pour les résultats d'affichage
     questions.forEach((question, index) => {
       const userAnswer = userAnswers[index];
       let isCorrect = false;
@@ -637,8 +809,15 @@ export default function ExercisesPage() {
       if (question.type === "qcm") {
         isCorrect = userAnswer === question.correctOption;
       } else if (question.type === "fill") {
-        // Utiliser la nouvelle fonction de vérification
-        isCorrect = checkFillAnswer(userAnswer, question.correctAnswer);
+        isCorrect = isCloseEnough(userAnswer, question.correctAnswer);
+      } else if (question.type === "fillDrag") {
+        const userVals = (userAnswer || "").split("|");
+        const correctVals = (question.correctAnswer || "").split("|");
+        isCorrect =
+          userVals.length === correctVals.length &&
+          userVals.every(
+            (ans, i) => normalize(ans) === normalize(correctVals[i])
+          );
       }
 
       if (isCorrect) {
@@ -650,22 +829,16 @@ export default function ExercisesPage() {
           userAnswer: userAnswer,
         });
       }
-
-      // Sauvegarder la progression en arrière-plan
-      saveUserProgress(
-        user.uid,
-        moduleId,
-        question.partId,
-        question.id,
-        isCorrect,
-        userAnswer
-      );
     });
 
     // Calculer le pourcentage
     results.percentage = Math.round((results.correct / results.total) * 100);
 
-    // Mettre à jour l'état avec les résultats
+    console.log(
+      `📊 Résultats finaux: ${results.correct}/${results.total} (${results.percentage}%)`
+    );
+
+    // Mettre à jour l'état avec les résultats pour l'affichage
     setResults(results);
     setShowResults(true);
     setIsSaving(false);
@@ -687,6 +860,20 @@ export default function ExercisesPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-cosmic-black">
+      {/* Message d'avertissement pour modules non autorisés */}
+      {moduleId !== "1" && !hasAccess && (
+        <div className="bg-red-500/20 text-white border-b border-red-500/50 py-2 px-4 text-center">
+          <div className="container mx-auto flex items-center justify-center">
+            <Lock className="w-4 h-4 mr-2 text-red-300" />
+            <p>
+              {language === "fr"
+                ? "Vous n'êtes pas autorisé à accéder à ce module. Le contenu affiché peut être limité."
+                : "You are not authorized to access this module. The content displayed may be limited."}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="bg-cosmic-black/80 backdrop-blur-md border-b border-neon-blue/20 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
@@ -749,7 +936,220 @@ export default function ExercisesPage() {
         </div>
 
         {/* Contenu de la page */}
-        {/* ... (reste du code de la page) ... */}
+        {questions.length > 0 ? (
+          showResults ? (
+            results ? (
+              <div className="max-w-xl mx-auto bg-gradient-to-br from-cosmic-black via-cosmic-black/80 to-neon-blue/10 rounded-2xl p-10 shadow-2xl text-lunar-white flex flex-col items-center">
+                <h2 className="text-4xl font-extrabold mb-6 text-neon-blue drop-shadow">
+                  {language === "fr" ? "Résultats" : "Results"}
+                </h2>
+                <div className="w-48 h-48 mb-6">
+                  <Pie
+                    data={{
+                      labels: [
+                        language === "fr" ? "Bonnes réponses" : "Correct",
+                        language === "fr" ? "Mauvaises réponses" : "Incorrect",
+                      ],
+                      datasets: [
+                        {
+                          data: [
+                            results.correct,
+                            results.total - results.correct,
+                          ],
+                          backgroundColor: ["#00CFFF", "#22223B"],
+                          borderColor: ["#00CFFF", "#22223B"],
+                          borderWidth: 2,
+                        },
+                      ],
+                    }}
+                    options={{
+                      plugins: {
+                        legend: {
+                          display: true,
+                          position: "bottom",
+                          labels: { color: "#fff", font: { size: 16 } },
+                        },
+                        tooltip: {
+                          callbacks: {
+                            label: function (context) {
+                              return `${context.label}: ${
+                                context.parsed
+                              } (${Math.round(
+                                (context.parsed / results.total) * 100
+                              )}%)`;
+                            },
+                          },
+                        },
+                      },
+                      cutout: "60%",
+                    }}
+                  />
+                </div>
+                <div className="text-2xl font-bold mb-2">
+                  {language === "fr"
+                    ? `Score : ${results.correct} / ${results.total} (${results.percentage}%)`
+                    : `Score: ${results.correct} / ${results.total} (${results.percentage}%)`}
+                </div>
+                <div className="text-lg mb-8 text-center">
+                  {results.percentage < 50 &&
+                    (language === "fr"
+                      ? "Courage ! Revois la théorie et réessaie, tu vas progresser."
+                      : "Keep going! Review the theory and try again, you'll improve.")}
+                  {results.percentage >= 50 &&
+                    results.percentage < 80 &&
+                    (language === "fr"
+                      ? "Bien joué ! Encore un petit effort pour tout maîtriser."
+                      : "Well done! A little more effort to master everything.")}
+                  {results.percentage >= 80 &&
+                    (language === "fr"
+                      ? "Excellent ! Tu maîtrises très bien ce chapitre."
+                      : "Excellent! You master this chapter very well.")}
+                </div>
+                <a href={`/modules/${moduleId}/lessons`}>
+                  <button className="px-8 py-3 bg-neon-blue text-cosmic-black rounded-xl text-lg font-bold shadow hover:bg-neon-blue/80 transition mb-2">
+                    {language === "fr" ? "Revoir la théorie" : "Review theory"}
+                  </button>
+                </a>
+                <button
+                  className="mt-2 px-8 py-2 bg-lunar-white/10 text-lunar-white rounded-xl text-lg font-semibold hover:bg-lunar-white/20 transition"
+                  onClick={() => window.location.reload()}
+                >
+                  {language === "fr" ? "Recommencer" : "Restart"}
+                </button>
+              </div>
+            ) : (
+              <div className="text-lunar-white text-center text-xl py-10">
+                {language === "fr"
+                  ? "Chargement des résultats..."
+                  : "Loading results..."}
+              </div>
+            )
+          ) : (
+            <div className="w-full max-w-5xl mx-auto bg-gradient-to-br from-cosmic-black via-cosmic-black/80 to-neon-blue/10 rounded-2xl p-20 shadow-2xl min-h-[700px] h-[700px] flex flex-col justify-between space-y-8">
+              <div>
+                <div className="mb-8 text-lunar-white/90 flex flex-col items-center">
+                  <span className="font-bold text-2xl tracking-wide text-neon-blue drop-shadow">
+                    {language === "fr" ? "Exercices" : "Exercises"}
+                  </span>
+                  <div className="mt-4 text-2xl font-extrabold leading-snug text-center">
+                    {/* QCM : question sans options */}
+                    {questions[currentStep].type === "qcm"
+                      ? (() => {
+                          let questionText = questions[currentStep].content;
+                          if (questionText.includes("1.")) {
+                            questionText = questionText.split("1.")[0].trim();
+                          }
+                          return questionText;
+                        })()
+                      : questions[currentStep].type === "fillDrag"
+                      ? renderFillDragText(
+                          questions[currentStep],
+                          userAnswers[currentStep],
+                          updateUserAnswer
+                        )
+                      : questions[currentStep].type === "fill"
+                      ? renderFillText(
+                          questions[currentStep],
+                          userAnswers[currentStep],
+                          updateUserAnswer
+                        )
+                      : questions[currentStep].content}
+                  </div>
+                </div>
+              </div>
+              {/* QCM */}
+              {questions[currentStep].type === "qcm" && (
+                <div className="flex flex-col gap-8 mt-8">
+                  {questions[currentStep].options.map((option, idx) => (
+                    <button
+                      key={idx}
+                      className="px-6 py-2 rounded-xl bg-lunar-white/10 text-lunar-white text-lg font-semibold hover:bg-lunar-white/20 transition"
+                      onClick={() => handleAnswerSubmit(option, true)}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {/* Navigation alignée en bas */}
+              <div className="flex justify-between mt-8">
+                <button
+                  className="px-6 py-2 rounded-xl bg-lunar-white/10 text-lunar-white text-lg font-semibold hover:bg-lunar-white/20 transition"
+                  disabled={currentStep === 0}
+                  onClick={() => setCurrentStep(currentStep - 1)}
+                >
+                  {language === "fr" ? "Précédent" : "Previous"}
+                </button>
+                <button
+                  className={`px-6 py-2 rounded-xl ${
+                    userAnswers[currentStep] &&
+                    userAnswers[currentStep].toString().trim() !== ""
+                      ? "bg-lunar-white/10 text-lunar-white hover:bg-lunar-white/20"
+                      : "bg-lunar-white/5 text-lunar-white/40 cursor-not-allowed"
+                  } text-lg font-semibold transition`}
+                  disabled={
+                    !userAnswers[currentStep] ||
+                    userAnswers[currentStep].toString().trim() === ""
+                  }
+                  onClick={() => {
+                    if (currentStep === questions.length - 1) {
+                      // Vérifier si toutes les questions ont une réponse
+                      const allAnswered = questions.every(
+                        (_, idx) =>
+                          userAnswers[idx] &&
+                          userAnswers[idx].toString().trim() !== ""
+                      );
+                      if (allAnswered) {
+                        submitAllAnswers();
+                      } else {
+                        alert(
+                          language === "fr"
+                            ? "Merci de répondre à toutes les questions avant de valider."
+                            : "Please answer all questions before submitting."
+                        );
+                      }
+                    } else {
+                      // Pour les questions fill et fillDrag, sauvegarder automatiquement avant de passer à la suivante
+                      if (
+                        questions[currentStep].type === "fill" ||
+                        questions[currentStep].type === "fillDrag"
+                      ) {
+                        const currentAnswer = userAnswers[currentStep];
+                        if (
+                          currentAnswer &&
+                          currentAnswer.toString().trim() !== ""
+                        ) {
+                          handleAnswerSubmit(currentAnswer, false).then(() => {
+                            setCurrentStep(currentStep + 1);
+                          });
+                        } else {
+                          setCurrentStep(currentStep + 1);
+                        }
+                      } else {
+                        // Pour les autres types de questions, passer directement à la suivante
+                        setCurrentStep(currentStep + 1);
+                      }
+                    }
+                  }}
+                >
+                  {currentStep === questions.length - 1
+                    ? language === "fr"
+                      ? "Valider"
+                      : "Submit"
+                    : language === "fr"
+                    ? "Suivant"
+                    : "Next"}
+                </button>
+              </div>
+            </div>
+          )
+        ) : (
+          <div className="text-lunar-white text-center text-xl py-10">
+            {language === "fr"
+              ? "Chargement des exercices..."
+              : "Loading exercises..."}
+          </div>
+        )}
       </div>
     </div>
   );

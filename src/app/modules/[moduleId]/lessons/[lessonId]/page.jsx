@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChange } from "@/lib/firebase/auth";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import { db } from "@/lib/firebase/config";
+import { db, isProduction } from "@/lib/firebase/config";
 import { ExerciseParser } from "@/components/exercises/ExerciseParser";
+import { ThreeDViewerButton } from "@/components/ui/3d-viewer-button";
+import { useModuleAccess } from "@/lib/hooks/useModuleAccess";
+import { toast } from "sonner";
+import { check3DModelExists, get3DModelURL } from "@/lib/firebase/storage";
 import {
   doc,
   getDoc,
@@ -22,6 +26,10 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
+import { Toaster } from "sonner";
+
+// Lazy load du ModelViewer
+const ModelViewer = lazy(() => import("@/components/3d/ModelViewer"));
 
 // Fonction pour extraire un titre à partir du contenu d'une question
 function extractQuestionTitle(content) {
@@ -132,7 +140,6 @@ function parseQuestionContent(content) {
     (content.includes("2.") || content.includes("3."))
   ) {
     try {
-
       // Extraire la question (tout ce qui précède "1.")
       const firstOptionIndex = content.indexOf("1.");
       if (firstOptionIndex > 0) {
@@ -392,10 +399,15 @@ function parseQuestionContent(content) {
 }
 
 export default function LessonPage() {
+  console.log("🎯 LessonPage component loaded");
+
   const params = useParams();
   const { moduleId, lessonId } = params;
+  console.log("📍 Params:", { moduleId, lessonId });
+
   const { language } = useLanguage();
   const router = useRouter();
+  const { canAccessModule } = useModuleAccess();
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
@@ -412,9 +424,76 @@ export default function LessonPage() {
   const [showResults, setShowResults] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [nextPartTitle, setNextPartTitle] = useState("");
+  const [hasAccess, setHasAccess] = useState(false);
+  const [has3DModel, setHas3DModel] = useState(false);
+  const [model3DURL, setModel3DURL] = useState(null);
+  const [checking3DModel, setChecking3DModel] = useState(false);
 
   const canvasRef = useRef(null);
   const sceneRef = useRef(null);
+  const [show3DViewer, setShow3DViewer] = useState(false);
+
+  // Vérifier l'accès au module
+  useEffect(() => {
+    if (moduleId) {
+      const moduleAccess = canAccessModule(moduleId);
+      setHasAccess(moduleAccess);
+    }
+  }, [moduleId, canAccessModule]);
+
+  // Vérifier l'existence du modèle 3D
+  useEffect(() => {
+    console.log("🚀 useEffect 3D déclenché, moduleId:", moduleId);
+    console.log("📦 Fonctions importées:", {
+      check3DModelExists,
+      get3DModelURL,
+    });
+
+    const check3DModel = async () => {
+      if (!moduleId) {
+        console.log("❌ Pas de moduleId, arrêt");
+        return;
+      }
+
+      console.log(`🔍 Vérification du modèle 3D pour le module: ${moduleId}`);
+      setChecking3DModel(true);
+      try {
+        const modelExists = await check3DModelExists(moduleId);
+        console.log(
+          `📦 Modèle 3D existe pour le module ${moduleId}:`,
+          modelExists
+        );
+        setHas3DModel(modelExists);
+
+        if (modelExists) {
+          const modelURL = await get3DModelURL(moduleId);
+          console.log(`🔗 URL du modèle 3D:`, modelURL);
+          setModel3DURL(modelURL);
+        }
+      } catch (error) {
+        console.error("❌ Erreur lors de la vérification du modèle 3D:", error);
+        setHas3DModel(false);
+        setModel3DURL(null);
+      } finally {
+        setChecking3DModel(false);
+      }
+    };
+
+    check3DModel();
+  }, [moduleId]);
+
+  // Fonction pour gérer l'ouverture du viewer 3D avec vérification des droits
+  const handle3DViewerToggle = () => {
+    if (!hasAccess && moduleId !== "1") {
+      toast.error(
+        language === "fr"
+          ? "Cette leçon n'est pas encore accessible"
+          : "This lesson is not yet accessible"
+      );
+      return;
+    }
+    setShow3DViewer(!show3DViewer);
+  };
 
   // Récupérer le contenu de la leçon et du module depuis Firebase
   useEffect(() => {
@@ -844,10 +923,12 @@ export default function LessonPage() {
   // Initialiser la scène 3D
   useEffect(() => {
     if (
+      !show3DViewer ||
       !canvasRef.current ||
       !lesson ||
       !lesson.steps ||
-      !lesson.steps[currentStep]
+      !lesson.steps[currentStep] ||
+      !lesson.steps[currentStep]["3dModel"]
     )
       return;
 
@@ -1071,7 +1152,7 @@ export default function LessonPage() {
       sceneRef.current = "unmounted";
       window.removeEventListener("resize", handleResize);
     };
-  }, [currentStep, lesson]);
+  }, [show3DViewer, currentStep, lesson]);
 
   // Gérer la soumission des réponses au quiz
   const handleQuizSubmit = (selectedOption) => {
@@ -1243,6 +1324,11 @@ export default function LessonPage() {
   // Récupérer le contenu de l'étape actuelle
   const currentContent = lesson.steps[currentStep];
 
+  console.log("🔥 Firebase Storage functions imported:", {
+    check3DModelExists,
+    get3DModelURL,
+  });
+
   return (
     <div className="min-h-screen flex flex-col bg-cosmic-black">
       {/* Navigation */}
@@ -1269,7 +1355,7 @@ export default function LessonPage() {
       {/* Titre de la leçon */}
       <div className="container mx-auto px-4 mt-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between">
-          <div>
+          <div className="flex-1">
             <Link
               href={`/modules/${moduleId}`}
               className="inline-flex items-center text-lunar-white/70 hover:text-lunar-white transition-colors mb-2"
@@ -1291,15 +1377,235 @@ export default function LessonPage() {
                 : `Back to module ${moduleTitleEn}`}
             </Link>
 
-            <h1 className="text-3xl font-bold text-lunar-white font-exo">
-              {lesson &&
-                (language === "fr"
-                  ? lesson.title
-                  : lesson.titleEn || lesson.title)}
-            </h1>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <h1 className="text-2xl md:text-3xl font-bold text-lunar-white font-exo">
+                {lesson &&
+                  (language === "fr"
+                    ? lesson.title
+                    : lesson.titleEn || lesson.title)}
+              </h1>
+
+              {/* Bouton Découvrir en 3D */}
+              {has3DModel && !checking3DModel && (
+                <div className="relative flex-shrink-0">
+                  <ThreeDViewerButton
+                    onClick={handle3DViewerToggle}
+                    isActive={show3DViewer}
+                    className={`${
+                      !hasAccess && moduleId !== "1" ? "opacity-60" : ""
+                    } w-full md:w-auto`}
+                  />
+                  {!hasAccess && moduleId !== "1" && (
+                    <div className="absolute -top-1 -right-1">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4 text-red-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                        />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Indicateur de chargement pour la vérification 3D */}
+              {checking3DModel && (
+                <div className="flex items-center text-lunar-white/70 text-sm">
+                  <div className="animate-spin mr-2 h-4 w-4 border-t-2 border-b-2 border-neon-blue rounded-full"></div>
+                  {language === "fr" ? "Vérification 3D..." : "Checking 3D..."}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Composant de test temporaire */}
+      <StorageTest />
+
+      {/* Debug des états 3D */}
+      <div className="container mx-auto px-4 mb-4">
+        <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 text-white">
+          <h3 className="font-bold mb-2">🐛 Debug États 3D</h3>
+          <div className="text-sm space-y-1">
+            <div>
+              📦 moduleId:{" "}
+              <span className="text-yellow-300">{moduleId || "undefined"}</span>
+            </div>
+            <div>
+              🔍 checking3DModel:{" "}
+              <span className="text-yellow-300">
+                {checking3DModel.toString()}
+              </span>
+            </div>
+            <div>
+              ✅ has3DModel:{" "}
+              <span className="text-yellow-300">{has3DModel.toString()}</span>
+            </div>
+            <div>
+              🔗 model3DURL:{" "}
+              <span className="text-yellow-300">{model3DURL || "null"}</span>
+            </div>
+            <div>
+              🔐 hasAccess:{" "}
+              <span className="text-yellow-300">{hasAccess.toString()}</span>
+            </div>
+            <div>
+              👁️ show3DViewer:{" "}
+              <span className="text-yellow-300">{show3DViewer.toString()}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Viewer 3D */}
+      <AnimatePresence>
+        {show3DViewer &&
+          has3DModel &&
+          model3DURL &&
+          (hasAccess || moduleId === "1") && (
+            <>
+              {/* Version desktop - section normale */}
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="hidden md:block container mx-auto px-4 mb-8"
+              >
+                <div className="bg-cosmic-black/90 backdrop-blur-md rounded-lg border border-neon-blue/30 p-6 shadow-2xl">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold text-lunar-white font-exo">
+                      {language === "fr"
+                        ? "Modèle 3D Interactif"
+                        : "Interactive 3D Model"}
+                    </h2>
+                    <Button
+                      onClick={handle3DViewerToggle}
+                      className="bg-lunar-white/10 hover:bg-lunar-white/20 text-lunar-white p-2 rounded-lg transition-colors"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </Button>
+                  </div>
+
+                  <div className="w-full h-96 bg-cosmic-black/50 rounded-lg border border-neon-blue/20 overflow-hidden">
+                    <Suspense
+                      fallback={
+                        <div className="flex items-center justify-center h-full">
+                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-neon-blue"></div>
+                        </div>
+                      }
+                    >
+                      <ModelViewer
+                        modelType="gltf"
+                        modelURL={model3DURL}
+                        className="h-full"
+                      />
+                    </Suspense>
+                  </div>
+
+                  <div className="mt-4 text-sm text-lunar-white/70 text-center">
+                    {language === "fr"
+                      ? "Utilisez la souris pour faire tourner, zoomer et explorer le modèle 3D"
+                      : "Use your mouse to rotate, zoom and explore the 3D model"}
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Version mobile - modal plein écran */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="md:hidden fixed inset-0 z-50 bg-cosmic-black"
+              >
+                {/* Header du modal mobile */}
+                <div className="flex justify-between items-center p-4 border-b border-neon-blue/20">
+                  <h2 className="text-lg font-bold text-lunar-white font-exo">
+                    {language === "fr" ? "Modèle 3D" : "3D Model"}
+                  </h2>
+                  <Button
+                    onClick={handle3DViewerToggle}
+                    className="bg-lunar-white/10 hover:bg-lunar-white/20 text-lunar-white p-2 rounded-lg transition-colors"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </Button>
+                </div>
+
+                {/* Contenu 3D plein écran */}
+                <div
+                  className="flex-1 bg-cosmic-black/50"
+                  style={{ height: "calc(100vh - 120px)" }}
+                >
+                  <Suspense
+                    fallback={
+                      <div className="flex items-center justify-center h-full">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-neon-blue"></div>
+                      </div>
+                    }
+                  >
+                    <ModelViewer
+                      modelType="gltf"
+                      modelURL={model3DURL}
+                      className="h-full"
+                    />
+                  </Suspense>
+                </div>
+
+                {/* Instructions mobiles */}
+                <div className="p-4 bg-cosmic-black/90 border-t border-neon-blue/20">
+                  <div className="text-center">
+                    <p className="text-sm text-lunar-white/90 font-medium mb-1">
+                      {language === "fr"
+                        ? "Faites pivoter l'objet avec le doigt"
+                        : "Rotate the object with your finger"}
+                    </p>
+                    <p className="text-xs text-lunar-white/70">
+                      {language === "fr"
+                        ? "Pincez pour zoomer • Glissez pour déplacer"
+                        : "Pinch to zoom • Drag to move"}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          )}
+      </AnimatePresence>
 
       {/* Contenu principal */}
       <div className="container mx-auto px-4 py-8">
@@ -1337,7 +1643,7 @@ export default function LessonPage() {
           lesson.steps[currentStep + 1]?.partNumber &&
           lesson.steps[currentStep]?.partNumber &&
           lesson.steps[currentStep]?.partNumber !==
-          lesson.steps[currentStep + 1]?.partNumber && (
+            lesson.steps[currentStep + 1]?.partNumber && (
             <div className="mb-4 text-lunar-white/70 text-sm bg-cosmic-black/40 p-2 rounded-lg flex items-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -1357,9 +1663,9 @@ export default function LessonPage() {
                   {lesson.steps[currentStep + 1]?.partTitle
                     ? lesson.steps[currentStep + 1]?.partTitle
                     : language === "fr"
-                      ? "Partie " +
+                    ? "Partie " +
                       (lesson.steps[currentStep + 1]?.partNumber || "inconnue")
-                      : "Part " +
+                    : "Part " +
                       (lesson.steps[currentStep + 1]?.partNumber || "unknown")}
                 </span>
               </span>
@@ -1404,10 +1710,11 @@ export default function LessonPage() {
               {results.details.map((result, index) => (
                 <div
                   key={index}
-                  className={`p-4 rounded-lg border ${result.correct
+                  className={`p-4 rounded-lg border ${
+                    result.correct
                       ? "border-green-500/50 bg-green-500/10"
                       : "border-red-500/50 bg-red-500/10"
-                    }`}
+                  }`}
                 >
                   <p className="font-medium text-lunar-white mb-1">
                     {language === "fr" ? "Question" : "Question"} {index + 1}:
@@ -1416,8 +1723,8 @@ export default function LessonPage() {
                         ? " Correcte"
                         : " Correct"
                       : language === "fr"
-                        ? " Incorrecte"
-                        : " Incorrect"}
+                      ? " Incorrecte"
+                      : " Incorrect"}
                   </p>
                   {!result.correct && (
                     <p className="text-sm text-lunar-white/70">
@@ -1459,7 +1766,7 @@ export default function LessonPage() {
                             language === "fr"
                               ? lesson.steps[currentStep].content
                               : lesson.steps[currentStep].contentEn ||
-                              lesson.steps[currentStep].content,
+                                lesson.steps[currentStep].content,
                         }}
                       />
                     </div>
@@ -1469,7 +1776,7 @@ export default function LessonPage() {
                         {language === "fr"
                           ? lesson.steps[currentStep].question
                           : lesson.steps[currentStep].questionEn ||
-                          lesson.steps[currentStep].question}
+                            lesson.steps[currentStep].question}
                       </h3>
 
                       <div className="space-y-3">
@@ -1483,10 +1790,11 @@ export default function LessonPage() {
                               <button
                                 key={index}
                                 onClick={() => handleQuizSubmit(option)}
-                                className={`w-full text-left p-4 rounded-lg border transition-all duration-300 ${isSelected
+                                className={`w-full text-left p-4 rounded-lg border transition-all duration-300 ${
+                                  isSelected
                                     ? "bg-neon-blue/20 border-neon-blue text-lunar-white"
                                     : "bg-cosmic-black/40 border-neon-blue/20 text-lunar-white/90 hover:border-neon-blue/50"
-                                  }`}
+                                }`}
                                 disabled={showFeedback}
                               >
                                 {option}
@@ -1498,10 +1806,11 @@ export default function LessonPage() {
 
                       {showFeedback && (
                         <div
-                          className={`p-4 rounded-lg ${isCorrect
+                          className={`p-4 rounded-lg ${
+                            isCorrect
                               ? "bg-green-500/20 border border-green-500/50"
                               : "bg-red-500/20 border border-red-500/50"
-                            }`}
+                          }`}
                         >
                           <p className="text-lunar-white">
                             {isCorrect
@@ -1509,8 +1818,8 @@ export default function LessonPage() {
                                 ? "Bonne réponse !"
                                 : "Correct answer!"
                               : language === "fr"
-                                ? "Réponse incorrecte. Réessayez."
-                                : "Incorrect answer. Try again."}
+                              ? "Réponse incorrecte. Réessayez."
+                              : "Incorrect answer. Try again."}
                           </p>
                         </div>
                       )}
@@ -1532,161 +1841,91 @@ export default function LessonPage() {
                               return <span key={index}>{part}</span>;
                             } else {
                               const blankIndex = Math.floor(index / 2);
-                              const blankId = `blank_${blankIndex}`;
+                              const blankId = `blank-${currentStep}-${blankIndex}`;
                               return (
-                                <span key={index} className="inline-block mx-1">
-                                  <select
-                                    className={`px-2 py-1 rounded bg-cosmic-black border ${showFeedback
-                                        ? userAnswers[currentStep]?.[
-                                          blankId
-                                        ] ===
-                                          lesson.steps[currentStep].blanks[
-                                            blankIndex
-                                          ]?.answer
-                                          ? "border-green-500 text-green-300"
-                                          : "border-red-500 text-red-300"
-                                        : "border-neon-blue/40 text-neon-blue"
-                                      } min-w-[100px]`}
-                                    value={
-                                      userAnswers[currentStep]?.[blankId] || ""
-                                    }
-                                    onChange={(e) =>
-                                      handleBlankFill(blankId, e.target.value)
-                                    }
-                                    disabled={showFeedback}
-                                  >
-                                    <option value="">...</option>
-                                    {lesson.steps[currentStep].propositions.map(
-                                      (prop, propIdx) => (
-                                        <option key={propIdx} value={prop}>
-                                          {prop}
-                                        </option>
-                                      )
-                                    )}
-                                  </select>
-                                </span>
+                                <input
+                                  key={blankId}
+                                  type="text"
+                                  id={blankId}
+                                  value={
+                                    userAnswers[currentStep]?.[blankId] || ""
+                                  }
+                                  onChange={(e) =>
+                                    handleBlankFill(blankId, e.target.value)
+                                  }
+                                  className="inline-block mx-1 px-2 py-1 bg-cosmic-black/60 border border-neon-blue/30 rounded text-lunar-white focus:border-neon-blue focus:outline-none"
+                                  style={{ minWidth: "100px" }}
+                                />
                               );
                             }
                           })}
                       </div>
 
-                      {!showFeedback ? (
-                        <Button
-                          className="bg-neon-blue text-lunar-white"
-                          onClick={checkBlanks}
-                        >
-                          {language === "fr" ? "Vérifier" : "Check"}
-                        </Button>
-                      ) : (
-                        <div
-                          className={`p-4 rounded-lg ${isCorrect
-                              ? "bg-green-500/20 border border-green-500/50"
-                              : "bg-red-500/20 border border-red-500/50"
-                            }`}
-                        >
-                          <p className="text-lunar-white">
-                            {isCorrect
-                              ? language === "fr"
-                                ? "Bonne réponse !"
-                                : "Correct answer!"
-                              : language === "fr"
-                                ? "Réponse incorrecte. Réessayez."
-                                : "Incorrect answer. Try again."}
-                          </p>
+                      <div className="mb-6">
+                        <h4 className="text-md font-medium text-lunar-white mb-3">
+                          {language === "fr"
+                            ? "Propositions :"
+                            : "Propositions:"}
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {lesson.steps[currentStep].propositions.map(
+                            (proposition, index) => (
+                              <span
+                                key={index}
+                                className="px-3 py-1 bg-neon-blue/20 border border-neon-blue/50 rounded-lg text-lunar-white text-sm"
+                              >
+                                {proposition}
+                              </span>
+                            )
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ) : lesson.steps[currentStep].type === "fillInText" ? (
-                    <div className="space-y-6">
-                      <h3 className="text-lg font-medium text-lunar-white mb-4">
-                        {language === "fr"
-                          ? "Complétez le texte"
-                          : "Complete the text"}
-                      </h3>
-
-                      <div className="text-lunar-white mb-6">
-                        {lesson.steps[currentStep].text
-                          .split(/\[([^\]]*)\]/)
-                          .map((part, index) => {
-                            // Les parties d'index pair sont du texte normal, les parties d'index impair sont les blancs à remplir
-                            if (index % 2 === 0) {
-                              return <span key={index}>{part}</span>;
-                            } else {
-                              const blankIndex = Math.floor(index / 2);
-                              const blankId = `blank_${blankIndex}`;
-                              return (
-                                <span key={index} className="inline-block mx-1">
-                                  <input
-                                    type="text"
-                                    className={`px-2 py-1 rounded bg-cosmic-black border ${showFeedback
-                                        ? userAnswers[currentStep]?.[
-                                          blankId
-                                        ]?.toLowerCase() ===
-                                          lesson.steps[currentStep].blanks[
-                                            blankIndex
-                                          ]?.answer.toLowerCase()
-                                          ? "border-green-500 text-green-300"
-                                          : "border-red-500 text-red-300"
-                                        : "border-neon-blue/40 text-neon-blue"
-                                      } min-w-[100px]`}
-                                    value={
-                                      userAnswers[currentStep]?.[blankId] || ""
-                                    }
-                                    onChange={(e) =>
-                                      handleBlankFill(blankId, e.target.value)
-                                    }
-                                    placeholder={
-                                      language === "fr"
-                                        ? "Votre réponse"
-                                        : "Your answer"
-                                    }
-                                    disabled={showFeedback}
-                                  />
-                                </span>
-                              );
-                            }
-                          })}
                       </div>
 
-                      {!showFeedback ? (
-                        <Button
-                          className="bg-neon-blue text-lunar-white"
-                          onClick={checkBlanks}
-                        >
-                          {language === "fr" ? "Vérifier" : "Check"}
-                        </Button>
-                      ) : (
+                      <Button
+                        onClick={checkBlanks}
+                        className="bg-neon-blue hover:bg-neon-blue/80 text-lunar-white"
+                      >
+                        {language === "fr" ? "Vérifier" : "Check"}
+                      </Button>
+
+                      {showFeedback && (
                         <div
-                          className={`p-4 rounded-lg ${isCorrect
+                          className={`p-4 rounded-lg ${
+                            isCorrect
                               ? "bg-green-500/20 border border-green-500/50"
                               : "bg-red-500/20 border border-red-500/50"
-                            }`}
+                          }`}
                         >
                           <p className="text-lunar-white">
                             {isCorrect
                               ? language === "fr"
-                                ? "Bonne réponse !"
-                                : "Correct answer!"
+                                ? "Toutes les réponses sont correctes !"
+                                : "All answers are correct!"
                               : language === "fr"
-                                ? "Réponse incorrecte. Réessayez."
-                                : "Incorrect answer. Try again."}
+                              ? "Certaines réponses sont incorrectes. Réessayez."
+                              : "Some answers are incorrect. Try again."}
                           </p>
                         </div>
                       )}
                     </div>
                   ) : lesson.steps[currentStep].type === "exercise" ? (
                     <div className="space-y-6">
-                      {/* Afficher le contenu de la question ou de l'exercice */}
-                      <div className="prose prose-invert prose-blue max-w-none">
-                        <ExerciseParser
-                          content={
-                            language === "fr"
-                              ? lesson.steps[currentStep].content
-                              : lesson.steps[currentStep].contentEn ||
+                      <ExerciseParser
+                        content={
+                          language === "fr"
+                            ? lesson.steps[currentStep].content
+                            : lesson.steps[currentStep].contentEn ||
                               lesson.steps[currentStep].content
-                          }
-                        />
-                      </div>
+                        }
+                        onAnswer={(answer) => {
+                          setUserAnswers((prev) => ({
+                            ...prev,
+                            [currentStep]: answer,
+                          }));
+                        }}
+                        currentAnswer={userAnswers[currentStep]}
+                        language={language}
+                      />
                     </div>
                   ) : (
                     <div className="prose prose-invert prose-blue max-w-none">
@@ -1696,7 +1935,7 @@ export default function LessonPage() {
                             language === "fr"
                               ? lesson.steps[currentStep].content
                               : lesson.steps[currentStep].contentEn ||
-                              lesson.steps[currentStep].content,
+                                lesson.steps[currentStep].content,
                         }}
                       />
                     </div>
@@ -1707,45 +1946,68 @@ export default function LessonPage() {
           </div>
         )}
 
-        {/* Navigation des étapes */}
+        {/* Boutons de navigation */}
         {!showResults && (
-          <div className="mt-8 flex justify-between">
+          <div className="flex justify-between items-center mt-8">
             <Button
-              onClick={() => {
-                setCurrentStep(Math.max(0, currentStep - 1));
-                setShowFeedback(false);
-              }}
+              onClick={goToPreviousStep}
               disabled={currentStep === 0}
-              className="bg-neon-blue/20 hover:bg-neon-blue/30 text-neon-blue disabled:opacity-50"
+              className="bg-lunar-white/10 hover:bg-lunar-white/20 text-lunar-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {language === "fr" ? "Précédent" : "Previous"}
             </Button>
 
-            {lesson && lesson.steps && currentStep < lesson.steps.length - 1 ? (
-              <Button
-                onClick={() => {
-                  setCurrentStep(
-                    Math.min(lesson.steps.length - 1, currentStep + 1)
-                  );
-                  setShowFeedback(false);
-                }}
-                disabled={!userAnswers[currentStep]}
-                className="bg-neon-blue hover:bg-neon-blue/80 text-lunar-white disabled:opacity-50"
-              >
-                {language === "fr" ? "Suivant" : "Next"}
-              </Button>
-            ) : (
-              <Button
-                onClick={submitAllAnswers}
-                disabled={Object.keys(userAnswers).length < lesson.steps.length}
-                className="bg-gradient-to-r from-neon-blue to-neon-pink text-lunar-white hover:opacity-90 disabled:opacity-50"
-              >
-                {language === "fr" ? "Valider mes réponses" : "Submit answers"}
-              </Button>
-            )}
+            <div className="flex gap-4">
+              {currentStep === lesson.steps.length - 1 ? (
+                <Button
+                  onClick={submitAllAnswers}
+                  className="bg-gradient-to-r from-neon-blue to-neon-pink hover:opacity-90 text-lunar-white font-medium"
+                >
+                  {language === "fr" ? "Terminer le quiz" : "Finish quiz"}
+                </Button>
+              ) : (
+                <Button
+                  onClick={goToNextStep}
+                  className="bg-neon-blue hover:bg-neon-blue/80 text-lunar-white"
+                >
+                  {language === "fr" ? "Suivant" : "Next"}
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      {/* Toaster pour les notifications */}
+      <Toaster position="top-center" />
+
+      {/* Bouton flottant 3D pour mobile */}
+      {has3DModel && !show3DViewer && !checking3DModel && (
+        <div className="md:hidden fixed bottom-6 right-6 z-40">
+          <Button
+            onClick={handle3DViewerToggle}
+            className={`${
+              !hasAccess && moduleId !== "1" ? "opacity-60" : ""
+            } bg-gradient-to-r from-neon-blue to-neon-pink hover:opacity-90 text-lunar-white p-4 rounded-full shadow-2xl border border-neon-blue/30`}
+            disabled={!hasAccess && moduleId !== "1"}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+              />
+            </svg>
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

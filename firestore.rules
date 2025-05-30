@@ -15,33 +15,34 @@ service cloud.firestore {
     }
     
     // Fonction pour vérifier si un module est le premier module
-    // Note: Adapter cette fonction selon votre logique métier pour identifier le premier module
     function isFirstModule(moduleId) {
-      return moduleId == "module1"; // Remplacer par l'ID réel de votre premier module
+      return moduleId == "1"; // Premier module ouvert à tous
     }
     
     // Règles pour les modules et leurs sous-collections
     match /modules/{moduleId} {
-      // Permettre la lecture du premier module à tous
-      // Permettre la lecture des modules déverrouillés aux utilisateurs connectés
-      // Permettre la lecture de tous les modules aux utilisateurs premium
-      allow read: if isFirstModule(moduleId) || 
-                    isModuleUnlocked(moduleId) || 
-                    isPremiumUser();
+      // Permettre la lecture de TOUS les modules à tous les utilisateurs (pour la liste)
+      allow read: if true;
       
       allow write: if request.auth != null && request.auth.token.admin == true;
       
+      // Autoriser la lecture de toutes les sous-collections (parts, lessons, exercises, etc.)
+      match /{subcollection=**} {
+        allow read: if true;
+      }
+      
+      // Accès spécial pour le module Earth - permettre un accès public direct
       match /parts/{partId} {
-        // Mêmes règles d'accès que pour les modules parents
-        allow read: if isFirstModule(moduleId) || 
+        // Permettre l'accès à toutes les parties du module "1" à tous les utilisateurs sans condition
+        allow read: if moduleId == "1" || 
                       isModuleUnlocked(moduleId) || 
                       isPremiumUser();
         
         allow write: if request.auth != null && request.auth.token.admin == true;
         
         match /lessons/{lessonId} {
-          // Mêmes règles d'accès que pour les modules parents
-          allow read: if isFirstModule(moduleId) || 
+          // Permettre l'accès à toutes les leçons du module "1" à tous les utilisateurs sans condition
+          allow read: if moduleId == "1" || 
                         isModuleUnlocked(moduleId) || 
                         isPremiumUser();
           
@@ -49,8 +50,8 @@ service cloud.firestore {
         }
         
         match /exercises/{exerciseId} {
-          // Mêmes règles d'accès que pour les modules parents
-          allow read: if isFirstModule(moduleId) || 
+          // Permettre l'accès à tous les exercices du module "1" à tous les utilisateurs sans condition
+          allow read: if moduleId == "1" || 
                         isModuleUnlocked(moduleId) || 
                         isPremiumUser();
           
@@ -132,6 +133,11 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
         allow read: if request.auth != null && request.auth.token.admin == true;
       }
+    }
+    
+    // Lecture/écriture du profil personnalisé uniquement par l'utilisateur concerné
+    match /profilesInfos/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
 } 

@@ -1,0 +1,29 @@
+{
+  "extends": ["next/core-web-vitals"],
+  "rules": {
+    "@next/next/no-img-element": "off",
+    "react/no-unescaped-entities": "off",
+    "react/display-name": "off",
+    "no-unused-vars": "warn",
+    "no-console": "warn",
+    "prefer-const": "error",
+    "no-var": "error"
+  },
+  "settings": {
+    "react": {
+      "version": "detect"
+    }
+  },
+  "ignorePatterns": [
+    "node_modules/**",
+    ".next/**",
+    "out/**",
+    "coverage/**",
+    "public/**",
+    "*.config.js",
+    "*.config.mjs",
+    "scripts/**",
+    "migration-backups/**",
+    "exports/**"
+  ]
+}
