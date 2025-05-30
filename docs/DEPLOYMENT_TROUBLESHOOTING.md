@@ -43,15 +43,17 @@ Could not resolve dependency: peer react@"^18.0.0" from @testing-library/react
 **Variables d'environnement à configurer dans Vercel :**
 
 ```bash
-NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyD1nF-_wOkeoowYsrNgkmnkb7E-iPkeO1s
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=space-learn-a2406.firebaseapp.com
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=space-learn-a2406
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=space-learn-a2406.firebasestorage.app
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=1093792863177
-NEXT_PUBLIC_FIREBASE_APP_ID=1:1093792863177:web:4556babb47b22ce6ed0e18
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
 NODE_ENV=production
 NEXT_PUBLIC_BUILD_ENV=production
 ```
+
+**Note importante :** Remplacez les valeurs `your_*` par vos vraies clés Firebase depuis la console Firebase.
 
 ### 5. **Configuration Hostinger**
 
