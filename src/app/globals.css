@@ -1,0 +1,509 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 33% 10%;
+    --foreground: 240 10% 95%;
+
+    --card: 240 33% 10%;
+    --card-foreground: 240 10% 95%;
+
+    --popover: 240 33% 10%;
+    --popover-foreground: 240 10% 95%;
+
+    --primary: 195 100% 60%;
+    --primary-foreground: 240 10% 95%;
+
+    --secondary: 330 100% 60%;
+    --secondary-foreground: 240 10% 95%;
+
+    --muted: 240 20% 20%;
+    --muted-foreground: 240 10% 70%;
+
+    --accent: 165 100% 50%;
+    --accent-foreground: 240 10% 95%;
+
+    --destructive: 0 100% 60%;
+    --destructive-foreground: 240 10% 95%;
+
+    --border: 240 20% 20%;
+    --input: 240 20% 20%;
+    --ring: 195 100% 60%;
+
+    --radius: 0.5rem;
+
+    /* Couleurs personnalisées */
+    --neon-blue: 195 100% 60%;
+    --neon-pink: 330 100% 60%;
+    --lunar-white: 240 10% 95%;
+    --cosmic-black: 240 33% 10%;
+    --light-turquoise: 165 100% 50%;
+  }
+
+  .dark {
+    --background: 240 33% 10%;
+    --foreground: 240 10% 95%;
+
+    --card: 240 33% 10%;
+    --card-foreground: 240 10% 95%;
+
+    --popover: 240 33% 10%;
+    --popover-foreground: 240 10% 95%;
+
+    --primary: 195 100% 60%;
+    --primary-foreground: 240 10% 95%;
+
+    --secondary: 330 100% 60%;
+    --secondary-foreground: 240 10% 95%;
+
+    --muted: 240 20% 20%;
+    --muted-foreground: 240 10% 70%;
+
+    --accent: 165 100% 50%;
+    --accent-foreground: 240 10% 95%;
+
+    --destructive: 0 100% 60%;
+    --destructive-foreground: 240 10% 95%;
+
+    --border: 240 20% 20%;
+    --input: 240 20% 20%;
+    --ring: 195 100% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-exo;
+  }
+
+  p,
+  span,
+  input,
+  select,
+  textarea,
+  button,
+  a {
+    @apply font-jetbrains;
+  }
+}
+
+/* Animation des étoiles - version optimisée (ni trop rapide, ni trop lente) */
+@keyframes twinkle {
+
+  0%,
+  30%,
+  70%,
+  100% {
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.star {
+  position: absolute;
+  background-color: white;
+  border-radius: 50%;
+  animation: twinkle var(--duration, 15s) infinite ease-in-out;
+  animation-delay: var(--delay, 0s);
+}
+
+/* Ajustement spécifique pour la page d'inscription */
+.register-page .star {
+  --duration: 20s;
+  /* Animation modérément lente */
+}
+
+/* Styles pour les formulaires */
+.form-input-modern {
+  @apply h-12 px-4 rounded-lg border border-neon-blue/20 bg-cosmic-black/50 text-lunar-white focus:border-neon-blue focus:ring-1 focus:ring-neon-blue/30 transition-all;
+}
+
+.form-select-modern {
+  @apply h-12 px-4 py-2 rounded-lg border border-neon-blue/20 bg-cosmic-black/50 text-lunar-white focus:border-neon-blue focus:ring-1 focus:ring-neon-blue/30 transition-all appearance-none cursor-pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='rgba(224, 224, 255, 0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+}
+
+/* Style pour les checkboxes */
+.checkbox-modern[data-state="checked"] {
+  @apply bg-neon-blue border-neon-blue;
+}
+
+/* Style pour les radio buttons */
+.radio-modern[data-state="checked"] {
+  @apply border-neon-blue;
+}
+
+.radio-modern[data-state="checked"]::before {
+  @apply bg-neon-blue;
+}
+
+/* Effet de glow pour les boutons */
+.btn-glow {
+  @apply relative;
+  box-shadow: 0 0 15px rgba(51, 204, 255, 0.5);
+}
+
+.btn-glow:hover {
+  box-shadow: 0 0 25px rgba(51, 204, 255, 0.7);
+}
+
+.btn-glow::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  background: linear-gradient(90deg,
+      rgba(51, 204, 255, 0.3),
+      rgba(255, 51, 153, 0.3));
+  border-radius: inherit;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.btn-glow:hover::after {
+  opacity: 1;
+}
+
+/* Styles personnalisés pour les boutons avec dégradé */
+.btn-gradient {
+  background: linear-gradient(to right, rgb(56, 189, 248), rgb(168, 85, 247));
+  transition: opacity 0.2s ease;
+}
+
+.btn-gradient:hover {
+  opacity: 0.9;
+}
+
+/* Form and UI enhancements */
+.form-container {
+  backdrop-filter: blur(12px);
+  background: hsl(var(--card) / 1);
+  border: 1px solid hsl(var(--border) / 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+/* Button enhancements */
+.button-glow {
+  @apply relative;
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.5);
+}
+
+.button-glow:hover {
+  box-shadow: 0 0 25px rgba(56, 189, 248, 0.7);
+}
+
+.btn-glow::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  background: linear-gradient(90deg,
+      rgba(56, 189, 248, 0.3),
+      rgba(168, 85, 247, 0.3));
+  border-radius: inherit;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.btn-glow:hover::after {
+  opacity: 1;
+}
+
+/* Tab styling */
+.tabs-container {
+  background: linear-gradient(to right,
+      hsl(var(--card) / 0.3),
+      hsl(var(--card) / 0.1));
+  backdrop-filter: blur(8px);
+}
+
+/* Input field styling */
+.input-space {
+  background: linear-gradient(to right,
+      hsl(var(--input) / 0.8),
+      hsl(var(--input) / 0.6));
+  border: 1px solid hsl(var(--border) / 0.3);
+}
+
+.input-space:focus {
+  box-shadow: 0 0 15px hsl(var(--ring) / 0.3);
+}
+
+/* Fond étoilé */
+.astronomy-bg {
+  background-color: #0a0e1a;
+  background-image: radial-gradient(circle,
+      rgba(255, 255, 255, 0.05) 1px,
+      transparent 1px);
+  background-size: 30px 30px;
+}
+
+/* Styles pour les entrées de formulaire */
+.form-input-focus {
+  @apply border-primary shadow-[0_0_8px_rgba(56, 189, 248, 0.3)];
+}
+
+/* Assurez-vous que le formulaire est toujours visible */
+.registration-form-container {
+  z-index: 100 !important;
+  position: relative !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  background-color: transparent !important;
+}
+
+/* Animation d'étoile filante occasionnelle */
+@keyframes shootingStar {
+  0% {
+    transform: translateX(-100px) translateY(-100px);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(calc(100vw + 100px)) translateY(calc(100vh + 100px));
+    opacity: 0;
+  }
+}
+
+.shooting-star {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100px;
+  height: 1px;
+  background: linear-gradient(to right, transparent, white, transparent);
+  transform: rotate(45deg);
+  animation: shootingStar 15s infinite linear;
+  animation-delay: calc(var(--delay) * 5s);
+}
+
+/* Amélioration des styles pour les options du select */
+.form-select-modern option {
+  @apply bg-[#121828] text-white py-1;
+}
+
+/* Ajoutez ces styles pour uniformiser les couleurs de focus/sélection */
+.form-input-modern:focus,
+.form-select-modern:focus {
+  @apply border-primary/70 ring-1 ring-primary/30;
+}
+
+/* Ajout des classes pour les couleurs personnalisées */
+.bg-neon-blue {
+  background-color: hsl(195, 100%, 60%);
+}
+
+.bg-neon-pink {
+  background-color: hsl(330, 100%, 60%);
+}
+
+.bg-lunar-white {
+  background-color: hsl(240, 10%, 95%);
+}
+
+.bg-cosmic-black {
+  background-color: hsl(240, 33%, 10%);
+}
+
+.bg-light-turquoise {
+  background-color: hsl(165, 100%, 50%);
+}
+
+.text-neon-blue {
+  color: hsl(195, 100%, 60%);
+}
+
+.text-neon-pink {
+  color: hsl(330, 100%, 60%);
+}
+
+.text-lunar-white {
+  color: hsl(240, 10%, 95%);
+}
+
+.text-cosmic-black {
+  color: hsl(240, 33%, 10%);
+}
+
+.text-light-turquoise {
+  color: hsl(165, 100%, 50%);
+}
+
+.border-neon-blue {
+  border-color: hsl(195, 100%, 60%);
+}
+
+.border-neon-pink {
+  border-color: hsl(330, 100%, 60%);
+}
+
+.border-lunar-white {
+  border-color: hsl(240, 10%, 95%);
+}
+
+.border-cosmic-black {
+  border-color: hsl(240, 33%, 10%);
+}
+
+.border-light-turquoise {
+  border-color: hsl(165, 100%, 50%);
+}
+
+/* Ajout des classes pour les dégradés */
+.bg-gradient-to-r.from-neon-blue.to-neon-pink {
+  background: linear-gradient(to right,
+      hsl(195, 100%, 60%),
+      hsl(330, 100%, 60%));
+}
+
+/* Ajout des classes pour les polices */
+.font-exo {
+  font-family: "Exo", sans-serif;
+}
+
+.font-jetbrains {
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* Styles spécifiques pour les onglets de la page d'inscription/connexion */
+.register-tabs {
+  position: relative;
+  z-index: 5;
+}
+
+.register-tabs button {
+  position: relative;
+  z-index: 6;
+  cursor: pointer;
+}
+
+.register-tabs button:first-child {
+  border-radius: 15px 0 0 0;
+}
+
+.register-tabs button:last-child {
+  border-radius: 0 15px 0 0;
+}
+
+.register-tabs button:focus {
+  outline: none;
+}
+
+/* Styles pour améliorer la visibilité du contenu des onglets */
+.tab-content {
+  position: relative;
+  z-index: 5;
+}
+
+/* Ajout des animations pour la section Discover */
+@keyframes cosmic-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes cosmic-pulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+@keyframes cosmic-float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes cosmic-glow {
+
+  0%,
+  100% {
+    filter: drop-shadow(0 0 2px rgba(56, 189, 248, 0.5));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.8));
+  }
+}
+
+@keyframes cosmic-appear {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cosmic-orbit {
+  animation: cosmic-rotate 30s linear infinite;
+}
+
+.cosmic-orbit-reverse {
+  animation: cosmic-rotate 40s linear infinite reverse;
+}
+
+.cosmic-pulse {
+  animation: cosmic-pulse 4s ease-in-out infinite;
+}
+
+.cosmic-float {
+  animation: cosmic-float 6s ease-in-out infinite;
+}
+
+.cosmic-glow {
+  animation: cosmic-glow 3s ease-in-out infinite;
+}
+
+/* Styles pour les hexagones */
+.hexagon {
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}

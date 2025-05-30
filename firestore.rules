@@ -1,0 +1,137 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Fonction pour vérifier si un utilisateur est premium
+    function isPremiumUser() {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'premium';
+    }
+    
+    // Fonction pour vérifier si un module est déverrouillé pour l'utilisateur
+    function isModuleUnlocked(moduleId) {
+      return request.auth != null && 
+             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.unlockedModules.hasAny([moduleId]) ||
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'premium');
+    }
+    
+    // Fonction pour vérifier si un module est le premier module
+    // Note: Adapter cette fonction selon votre logique métier pour identifier le premier module
+    function isFirstModule(moduleId) {
+      return moduleId == "module1"; // Remplacer par l'ID réel de votre premier module
+    }
+    
+    // Règles pour les modules et leurs sous-collections
+    match /modules/{moduleId} {
+      // Permettre la lecture du premier module à tous
+      // Permettre la lecture des modules déverrouillés aux utilisateurs connectés
+      // Permettre la lecture de tous les modules aux utilisateurs premium
+      allow read: if isFirstModule(moduleId) || 
+                    isModuleUnlocked(moduleId) || 
+                    isPremiumUser();
+      
+      allow write: if request.auth != null && request.auth.token.admin == true;
+      
+      match /parts/{partId} {
+        // Mêmes règles d'accès que pour les modules parents
+        allow read: if isFirstModule(moduleId) || 
+                      isModuleUnlocked(moduleId) || 
+                      isPremiumUser();
+        
+        allow write: if request.auth != null && request.auth.token.admin == true;
+        
+        match /lessons/{lessonId} {
+          // Mêmes règles d'accès que pour les modules parents
+          allow read: if isFirstModule(moduleId) || 
+                        isModuleUnlocked(moduleId) || 
+                        isPremiumUser();
+          
+          allow write: if request.auth != null && request.auth.token.admin == true;
+        }
+        
+        match /exercises/{exerciseId} {
+          // Mêmes règles d'accès que pour les modules parents
+          allow read: if isFirstModule(moduleId) || 
+                        isModuleUnlocked(moduleId) || 
+                        isPremiumUser();
+          
+          allow write: if request.auth != null && request.auth.token.admin == true;
+        }
+        
+        // Règles spécifiques pour les quiz - accès uniquement aux utilisateurs authentifiés
+        match /quizzes/{quizId} {
+          allow read: if request.auth != null && 
+                        (isFirstModule(moduleId) || isModuleUnlocked(moduleId) || isPremiumUser());
+          
+          allow write: if request.auth != null && request.auth.token.admin == true;
+          
+          // Les utilisateurs peuvent soumettre leurs réponses
+          match /responses/{responseId} {
+            allow read, write: if request.auth != null && responseId == request.auth.uid;
+            allow read: if request.auth != null && request.auth.token.admin == true;
+          }
+        }
+      }
+    }
+    
+    // Règles pour les modules premium
+    match /premium_modules/{moduleId} {
+      // Uniquement accessible aux utilisateurs premium
+      allow read: if isPremiumUser();
+      allow write: if request.auth != null && request.auth.token.admin == true;
+      
+      match /{document=**} {
+        allow read: if isPremiumUser();
+        allow write: if request.auth != null && request.auth.token.admin == true;
+      }
+    }
+    
+    // Règles pour les utilisateurs avec différents niveaux d'accès
+    match /users/{userId} {
+      // Les utilisateurs peuvent lire et écrire leur propre document
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Un administrateur peut lire toutes les données utilisateur
+      allow read: if request.auth != null && request.auth.token.admin == true;
+      
+      // Validation du rôle utilisateur
+      function isValidRole() {
+        let role = request.resource.data.role;
+        return role == 'free' || role == 'premium';
+      }
+      
+      // Validation des champs utilisateur lors de la création/mise à jour
+      function validateUserFields() {
+        let data = request.resource.data;
+        
+        // Vérifier le format du champ premiumUntil (si présent et si rôle premium)
+        let validPremiumUntil = !data.keys().hasAny(['premiumUntil']) || 
+                               (data.role == 'premium' && data.premiumUntil is timestamp);
+                               
+        // Vérifier que unlockedModules est un tableau
+        let validUnlockedModules = !data.keys().hasAny(['unlockedModules']) || 
+                                  data.unlockedModules is list;
+                                  
+        // Vérifier que progression est un objet
+        let validProgression = !data.keys().hasAny(['progression']) || 
+                              data.progression is map;
+                              
+        return isValidRole() && validPremiumUntil && validUnlockedModules && validProgression;
+      }
+      
+      // Applique la validation lors de la création/mise à jour du document utilisateur
+      allow create: if request.auth != null && 
+                     request.auth.uid == userId && 
+                     validateUserFields();
+                     
+      allow update: if request.auth != null && 
+                     request.auth.uid == userId && 
+                     validateUserFields();
+      
+      // Règles pour la progression des utilisateurs
+      match /progress/{progressId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if request.auth != null && request.auth.token.admin == true;
+      }
+    }
+  }
+} 

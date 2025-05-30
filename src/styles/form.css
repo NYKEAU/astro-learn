@@ -1,0 +1,162 @@
+.form-container {
+  background: rgba(17, 24, 39, 0.4);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1.5rem;
+  padding: 3rem;
+}
+
+.form-container:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+  transition: all 0.3s ease;
+}
+
+/* Style pour les tabs */
+.tabs-list {
+  background: rgba(17, 24, 39, 0.6);
+  margin-bottom: 3rem;
+  padding: 0.5rem;
+  border-radius: 1rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.tab-trigger {
+  background: transparent;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.3s ease;
+}
+
+.tab-trigger.active {
+  background: rgb(59, 130, 246);
+  color: white;
+}
+
+.tab-trigger svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.tab-trigger span {
+  font-size: 0.875rem;
+}
+
+.tab-trigger:not(:disabled):hover {
+  opacity: 0.9;
+}
+
+.tab-trigger[data-state="active"] {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+  opacity: 1;
+}
+
+.tab-content {
+  position: relative;
+  height: 100%;
+}
+
+.tab-content[data-state="inactive"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateX(-10px);
+  pointer-events: none;
+}
+
+.tab-content[data-state="active"] {
+  opacity: 1;
+  transform: translateX(0);
+  transition: all 0.3s ease;
+}
+
+/* Style pour les inputs et select */
+.form-input {
+  background: rgba(17, 24, 39, 0.6);
+  border: 1px solid transparent;
+  color: white;
+  transition: all 0.2s ease;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border-radius: 1rem;
+  font-size: 1.125rem;
+  height: 3.75rem;
+}
+
+.form-input:hover {
+  background: rgba(17, 24, 39, 0.7);
+}
+
+.form-input:focus {
+  background: rgba(17, 24, 39, 0.8);
+  border-color: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+.form-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 1.125rem;
+}
+
+/* Labels */
+label {
+  display: block;
+  margin-bottom: 1rem;
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+/* Messages d'erreur */
+.form-message {
+  color: #ff6b6b;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+/* Style pour les boutons de navigation */
+.nav-button {
+  background: rgb(59, 130, 246);
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.nav-button:hover:not(:disabled) {
+  background: rgb(37, 99, 235);
+  transform: translateY(-1px);
+}
+
+.nav-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Style spécifique pour le select */
+select.form-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 1.25rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25em 1.25em;
+  padding-right: 3rem;
+}
+
+select.form-input option {
+  background-color: rgb(17, 24, 39);
+  color: white;
+  padding: 1rem;
+  font-size: 1.125rem;
+}
+
+select.form-input:focus {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+}
