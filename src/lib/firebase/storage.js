@@ -148,18 +148,68 @@ export async function loadPersonalUniverse(userId) {
   try {
     console.log("📂 Chargement de l'univers pour l'utilisateur:", userId);
 
-    // Créer la référence du fichier
-    const universeRef = ref(storage, `users/${userId}/universe.json`);
+    // Première tentative : accès direct Firebase Storage
+    try {
+      const universeRef = ref(storage, `users/${userId}/universe.json`);
+      const arrayBuffer = await getBytes(universeRef);
+      const jsonString = new TextDecoder().decode(arrayBuffer);
+      const universeData = JSON.parse(jsonString);
 
-    // Télécharger le fichier
-    const arrayBuffer = await getBytes(universeRef);
-    const jsonString = new TextDecoder().decode(arrayBuffer);
-    const universeData = JSON.parse(jsonString);
+      console.log(
+        "✅ Univers chargé avec succès (accès direct):",
+        universeData
+      );
+      return universeData;
+    } catch (directError) {
+      console.warn(
+        "⚠️ Échec accès direct, tentative via proxy:",
+        directError.code || directError.message
+      );
 
-    console.log("✅ Univers chargé avec succès:", universeData);
-    return universeData;
+      // Fallback : utiliser le proxy API pour contourner CORS
+      console.log("🔄 Tentative via proxy API...");
+
+      // Récupérer le token d'auth depuis Firebase
+      const { getAuth } = await import("firebase/auth");
+      const auth = getAuth();
+      const user = auth.currentUser;
+
+      if (!user) {
+        throw new Error("Utilisateur non authentifié");
+      }
+
+      const token = await user.getIdToken();
+
+      const proxyUrl = `/api/proxy-storage/users/${encodeURIComponent(
+        userId
+      )}/universe.json`;
+      const response = await fetch(proxyUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const universeData = await response.json();
+        console.log("✅ Univers chargé avec succès (via proxy):", universeData);
+        return universeData;
+      } else if (response.status === 404) {
+        console.log(
+          "📝 Aucun univers sauvegardé trouvé pour cet utilisateur (proxy)"
+        );
+        return null;
+      } else {
+        throw new Error(
+          `Proxy failed: ${response.status} ${response.statusText}`
+        );
+      }
+    }
   } catch (error) {
-    if (error.code === "storage/object-not-found") {
+    if (
+      error.code === "storage/object-not-found" ||
+      error.message?.includes("404")
+    ) {
       console.log("📝 Aucun univers sauvegardé trouvé pour cet utilisateur");
       return null;
     }

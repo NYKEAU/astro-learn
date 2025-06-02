@@ -21,7 +21,7 @@ console.log("🔧 Configuration CORS pour Firebase Storage");
 console.log("📝 Veuillez configurer CORS manuellement avec la commande :");
 console.log("");
 console.log(
-  "gsutil cors set storage.cors.json gs://space-learn-a2406.appspot.com"
+  "gsutil cors set storage.cors.json gs://space-learn-a2406.firebasestorage.app"
 );
 console.log("");
 console.log("Ou dans la console Firebase :");
