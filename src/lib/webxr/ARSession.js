@@ -136,7 +136,19 @@ export class ARSession {
       console.log("🔄 Démarrage de la boucle de rendu...");
       this._frameCount = 0;
       this._lastFrameTime = performance.now();
-      this.renderer.setAnimationLoop(this.render.bind(this));
+
+      if (this._bypassMode) {
+        console.log("🔧 Mode BYPASS: démonstration 3D simple");
+        // Mode bypass - juste afficher le modèle 3D sans AR
+        this.startBypassDemo();
+      } else if (this._manualSession) {
+        console.log("🔧 Mode manuel: gestion de session sans Three.js XR");
+        // En mode manuel, on gère les frames nous-mêmes
+        this._manualSession.requestAnimationFrame(this.manualRender.bind(this));
+      } else {
+        // Mode normal avec Three.js XR
+        this.renderer.setAnimationLoop(this.render.bind(this));
+      }
 
       // Monitoring des frames WebXR
       this.startFrameMonitoring();
@@ -258,12 +270,10 @@ export class ARSession {
     this.renderer.xr.enabled = true;
     console.log("🥽 XR activé sur le renderer");
 
-    // CORRECTION: Lier la session APRÈS avoir activé XR
+    // CRITIQUE: Configurer le reference space AVANT setSession
     if (this.session) {
-      await this.renderer.xr.setSession(this.session);
-      console.log("🔗 Session XR liée au renderer");
+      console.log("🔍 Configuration du reference space compatible...");
 
-      // CRITIQUE: S'assurer que le reference space est configuré
       // Tenter différents types de reference space par ordre de préférence
       const referenceSpaceTypes = [
         "local-floor",
@@ -279,20 +289,31 @@ export class ARSession {
           console.log(`🔍 Test reference space '${spaceType}'...`);
           referenceSpace = await this.session.requestReferenceSpace(spaceType);
           usedType = spaceType;
-          console.log(`✅ Reference space '${spaceType}' configuré`);
+          console.log(`✅ Reference space '${spaceType}' disponible`);
           break;
         } catch (error) {
           console.warn(`⚠️ '${spaceType}' non disponible:`, error.message);
         }
       }
 
-      if (referenceSpace) {
-        this.renderer.xr.setReferenceSpace(referenceSpace);
-        console.log(`🎯 Reference space final: '${usedType}'`);
+      if (!referenceSpace) {
+        console.error("❌ AUCUN reference space standard disponible");
+        console.log("🔧 BYPASS: Mode de compatibilité extrême...");
+
+        // Mode bypass complet - ne pas utiliser Three.js XR du tout
+        this.renderer.xr.enabled = false; // DÉSACTIVER XR dans Three.js
+        this._bypassMode = true;
+        this._manualSession = this.session;
+
+        console.log("⚠️ Mode BYPASS activé - rendu sans XR Three.js");
       } else {
-        console.error("❌ AUCUN reference space disponible sur cet appareil");
-        // Ne pas bloquer - laisser WebXR utiliser ses valeurs par défaut
-        console.warn("⚠️ Continuer sans reference space explicite...");
+        // Configuration normale avec reference space compatible
+        console.log(`🎯 Configuration avec reference space: '${usedType}'`);
+
+        // Maintenant on peut faire setSession en toute sécurité
+        await this.renderer.xr.setSession(this.session);
+        this.renderer.xr.setReferenceSpace(referenceSpace);
+        console.log("✅ Session XR liée avec reference space compatible");
       }
     }
 
@@ -479,6 +500,73 @@ export class ARSession {
     this._noFrameWarned = false;
 
     console.log("🔚 Nettoyage complet terminé");
+  }
+
+  startBypassDemo() {
+    console.log("🎮 Démarrage de la démonstration 3D bypass");
+
+    // Placer le modèle au centre de la scène
+    if (this.model) {
+      this.model.position.set(0, 0, -1.5); // 1.5m devant la caméra
+      this.model.visible = true;
+      this.isPlaced = true;
+      console.log("📍 Modèle placé en mode démonstration");
+    }
+
+    // Démarrer une boucle de rendu simple
+    this.renderer.setAnimationLoop((timestamp) => {
+      this._frameCount = (this._frameCount || 0) + 1;
+
+      if (!this._firstFrameLogged) {
+        console.log("🎬 PREMIÈRE FRAME en mode BYPASS");
+        this._firstFrameLogged = true;
+      }
+
+      // Faire tourner le modèle
+      if (this.model && this.model.visible) {
+        this.model.rotation.y += WEBXR_CONFIG.model.rotationSpeed;
+      }
+
+      // Rendu standard Three.js (pas XR)
+      this.renderer.render(this.scene, this.camera);
+    });
+
+    console.log("✅ Mode BYPASS actif - modèle visible");
+  }
+
+  manualRender(timestamp, frame) {
+    try {
+      console.log("🔧 Rendu manuel WebXR");
+
+      if (frame && this._manualSession) {
+        this._frameCount = (this._frameCount || 0) + 1;
+
+        if (!this._firstFrameLogged) {
+          console.log("🎬 PREMIÈRE FRAME WebXR manuelle reçue:", {
+            timestamp,
+            frameNumber: this._frameCount,
+            session: !!this._manualSession,
+            sessionVisibility: this._manualSession?.visibilityState,
+          });
+          this._firstFrameLogged = true;
+        }
+
+        // Faire tourner le modèle s'il est placé
+        if (this.model && this.model.visible) {
+          this.model.rotation.y += WEBXR_CONFIG.model.rotationSpeed;
+        }
+
+        // Rendu basique sans reference space
+        if (this.renderer && this.scene && this.camera) {
+          this.renderer.render(this.scene, this.camera);
+        }
+
+        // Demander la prochaine frame
+        this._manualSession.requestAnimationFrame(this.manualRender.bind(this));
+      }
+    } catch (error) {
+      console.error("❌ Erreur rendu manuel:", error);
+    }
   }
 
   render(timestamp, frame) {

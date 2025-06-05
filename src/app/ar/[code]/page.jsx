@@ -125,9 +125,18 @@ export default function ARPage() {
       setArSession(session);
 
       console.log("🎉 Succès AR - affichage toast");
-      toast.success(
-        "Session AR démarrée ! Pointez votre caméra vers une surface plane"
-      );
+
+      // Vérifier si on est en mode bypass
+      if (session._bypassMode) {
+        toast.warning(
+          "Mode de compatibilité activé - Démonstration 3D sans AR réelle",
+          { duration: 5000 }
+        );
+      } else {
+        toast.success(
+          "Session AR démarrée ! Pointez votre caméra vers une surface plane"
+        );
+      }
     } catch (error) {
       console.error("❌ ERREUR GLOBALE AR:", error);
       console.error("🔍 Type erreur globale:", typeof error);
