@@ -264,30 +264,35 @@ export class ARSession {
       console.log("🔗 Session XR liée au renderer");
 
       // CRITIQUE: S'assurer que le reference space est configuré
-      try {
-        const referenceSpace = await this.session.requestReferenceSpace(
-          "local-floor"
-        );
-        this.renderer.xr.setReferenceSpace(referenceSpace);
-        console.log("✅ Reference space 'local-floor' configuré");
-      } catch (error) {
-        console.warn(
-          "⚠️ local-floor non disponible, essai 'local':",
-          error.message
-        );
+      // Tenter différents types de reference space par ordre de préférence
+      const referenceSpaceTypes = [
+        "local-floor",
+        "local",
+        "viewer",
+        "bounded-floor",
+      ];
+      let referenceSpace = null;
+      let usedType = null;
+
+      for (const spaceType of referenceSpaceTypes) {
         try {
-          const referenceSpace = await this.session.requestReferenceSpace(
-            "local"
-          );
-          this.renderer.xr.setReferenceSpace(referenceSpace);
-          console.log("✅ Reference space 'local' configuré");
-        } catch (error2) {
-          console.error(
-            "❌ CRITIQUE: Impossible de configurer reference space:",
-            error2
-          );
-          throw new Error("Reference space non disponible - AR impossible");
+          console.log(`🔍 Test reference space '${spaceType}'...`);
+          referenceSpace = await this.session.requestReferenceSpace(spaceType);
+          usedType = spaceType;
+          console.log(`✅ Reference space '${spaceType}' configuré`);
+          break;
+        } catch (error) {
+          console.warn(`⚠️ '${spaceType}' non disponible:`, error.message);
         }
+      }
+
+      if (referenceSpace) {
+        this.renderer.xr.setReferenceSpace(referenceSpace);
+        console.log(`🎯 Reference space final: '${usedType}'`);
+      } else {
+        console.error("❌ AUCUN reference space disponible sur cet appareil");
+        // Ne pas bloquer - laisser WebXR utiliser ses valeurs par défaut
+        console.warn("⚠️ Continuer sans reference space explicite...");
       }
     }
 

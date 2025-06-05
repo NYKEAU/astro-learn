@@ -98,6 +98,51 @@ export function MobileDebugOverlay({ isVisible = false, onToggle }) {
                 <h3 className="text-lg font-bold">Debug Console</h3>
                 <div className="flex gap-2">
                   <button
+                    onClick={() => {
+                      const logsText = logs
+                        .map(
+                          (log) =>
+                            `${log.timestamp} [${log.level.toUpperCase()}]\n${
+                              log.message
+                            }`
+                        )
+                        .join("\n\n");
+
+                      if (
+                        navigator.clipboard &&
+                        navigator.clipboard.writeText
+                      ) {
+                        navigator.clipboard
+                          .writeText(logsText)
+                          .then(() => {
+                            alert("Logs copiés dans le presse-papiers !");
+                          })
+                          .catch(() => {
+                            // Fallback pour les navigateurs plus anciens
+                            const textarea = document.createElement("textarea");
+                            textarea.value = logsText;
+                            document.body.appendChild(textarea);
+                            textarea.select();
+                            document.execCommand("copy");
+                            document.body.removeChild(textarea);
+                            alert("Logs copiés !");
+                          });
+                      } else {
+                        // Fallback pour navigateurs sans support clipboard
+                        const textarea = document.createElement("textarea");
+                        textarea.value = logsText;
+                        document.body.appendChild(textarea);
+                        textarea.select();
+                        document.execCommand("copy");
+                        document.body.removeChild(textarea);
+                        alert("Logs copiés !");
+                      }
+                    }}
+                    className="px-3 py-1 bg-green-500 text-white text-sm rounded"
+                  >
+                    📋 Copy
+                  </button>
+                  <button
                     onClick={clearLogs}
                     className="px-3 py-1 bg-blue-500 text-white text-sm rounded"
                   >

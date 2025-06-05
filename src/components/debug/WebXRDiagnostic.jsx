@@ -134,6 +134,29 @@ export function WebXRDiagnostic({ onClose }) {
                           {diagnostic.webxr.referenceSpace || "Non disponible"}
                         </span>
                       </div>
+
+                      {diagnostic.webxr?.availableReferenceSpaces && (
+                        <div className="mt-2 ml-4 text-sm">
+                          <p className="font-medium mb-1">
+                            Espaces disponibles:
+                          </p>
+                          {diagnostic.webxr.availableReferenceSpaces.length >
+                          0 ? (
+                            diagnostic.webxr.availableReferenceSpaces.map(
+                              (space) => (
+                                <div key={space} className="text-green-600">
+                                  ✅ {space}
+                                </div>
+                              )
+                            )
+                          ) : (
+                            <div className="text-red-600">
+                              ❌ Aucun espace supporté
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {diagnostic.webxr.referenceSpace === false && (
                         <div className="text-red-600 text-sm mt-1">
                           ⚠️ CRITIQUE: Sans reference space, l'AR ne peut pas

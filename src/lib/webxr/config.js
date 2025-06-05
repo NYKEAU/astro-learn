@@ -253,19 +253,30 @@ export async function diagnosticWebXR() {
         requiredFeatures: ["hit-test"],
       });
 
-      try {
-        const refSpace = await session.requestReferenceSpace("local-floor");
-        diagnostic.webxr.referenceSpace = "local-floor";
-        console.log("✅ Reference space 'local-floor' disponible");
-      } catch (e) {
+      const referenceSpaceTypes = [
+        "local-floor",
+        "local",
+        "viewer",
+        "bounded-floor",
+      ];
+      diagnostic.webxr.availableReferenceSpaces = [];
+
+      for (const spaceType of referenceSpaceTypes) {
         try {
-          const refSpace = await session.requestReferenceSpace("local");
-          diagnostic.webxr.referenceSpace = "local";
-          console.log("✅ Reference space 'local' disponible");
-        } catch (e2) {
-          diagnostic.webxr.referenceSpace = false;
-          console.log("❌ Aucun reference space disponible - CRITIQUE!");
+          const refSpace = await session.requestReferenceSpace(spaceType);
+          diagnostic.webxr.availableReferenceSpaces.push(spaceType);
+          console.log(`✅ Reference space '${spaceType}' disponible`);
+          if (!diagnostic.webxr.referenceSpace) {
+            diagnostic.webxr.referenceSpace = spaceType; // Premier disponible
+          }
+        } catch (e) {
+          console.log(`❌ Reference space '${spaceType}' non disponible`);
         }
+      }
+
+      if (diagnostic.webxr.availableReferenceSpaces.length === 0) {
+        diagnostic.webxr.referenceSpace = false;
+        console.log("❌ Aucun reference space disponible - CRITIQUE!");
       }
 
       session.end();
@@ -289,6 +300,11 @@ export async function diagnosticWebXR() {
   if (diagnostic.webxr.referenceSpace === false) {
     console.log(
       "❌ CRITIQUE: Reference space non disponible - redémarrez ARCore/ARKit"
+    );
+  }
+  if (diagnostic.webxr.availableReferenceSpaces?.length === 0) {
+    console.log(
+      "❌ Appareil incompatible avec WebXR AR - aucun reference space supporté"
     );
   }
   if (diagnostic.permissions.camera === "denied") {
