@@ -22,21 +22,27 @@ export default function ARPage() {
 
   useEffect(() => {
     const code = params.code;
+    console.log(`🎬 Page AR chargée avec code: ${code}`);
 
     if (!code) {
+      console.log(`❌ Aucun code fourni`);
       setStatus("error");
       setError("Code de partage manquant");
       return;
     }
 
     // Récupérer la session de partage
+    console.log(`🔍 Tentative de récupération de session...`);
     const session = sessionShare.getSession(code);
 
     if (!session) {
+      console.log(`❌ Aucune session trouvée pour le code ${code}`);
       setStatus("error");
       setError("Code de partage invalide ou expiré");
       return;
     }
+
+    console.log(`✅ Session trouvée:`, session);
 
     // Extraire les données du modèle depuis la session AR
     try {
@@ -148,6 +154,17 @@ export default function ARPage() {
 
   // Erreur
   if (status === "error") {
+    const testARWithDefaultModel = () => {
+      console.log("🧪 Test AR avec modèle par défaut");
+      setModelData({
+        modelURL: "/models/saturn_1.glb", // Modèle par défaut
+        title: "Saturne (Debug)",
+        moduleTitle: "Test AR",
+      });
+      setStatus("ready");
+      setError(null);
+    };
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-cosmic-black via-cosmic-black/90 to-neon-blue/20 flex items-center justify-center p-4">
         <motion.div
@@ -174,12 +191,27 @@ export default function ARPage() {
             Erreur de chargement
           </h1>
           <p className="text-red-400 mb-4">{error}</p>
-          <button
-            onClick={goHome}
-            className="px-6 py-2 bg-gradient-to-r from-neon-blue to-neon-pink text-white rounded-lg hover:opacity-90 transition-opacity"
-          >
-            Retour à l'accueil
-          </button>
+
+          <div className="space-y-3">
+            <button
+              onClick={goHome}
+              className="w-full px-6 py-2 bg-gradient-to-r from-neon-blue to-neon-pink text-white rounded-lg hover:opacity-90 transition-opacity"
+            >
+              Retour à l'accueil
+            </button>
+
+            {/* Bouton de debug pour tester l'AR */}
+            <button
+              onClick={testARWithDefaultModel}
+              className="w-full px-6 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg hover:opacity-90 transition-opacity text-sm"
+            >
+              🧪 Tester AR avec modèle par défaut
+            </button>
+
+            <p className="text-xs text-lunar-white/50 mt-2">
+              Bouton de debug - Test AR sans code valide
+            </p>
+          </div>
         </motion.div>
       </div>
     );

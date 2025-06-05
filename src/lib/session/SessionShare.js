@@ -23,6 +23,8 @@ export class SessionShare {
       type: options.type || "normal", // 'normal' ou 'ar'
     };
 
+    console.log(`🔗 Génération code ${code}:`, sessionData);
+
     this.sessions.set(code, sessionData);
 
     // Sauvegarder dans localStorage pour persistance
@@ -31,6 +33,9 @@ export class SessionShare {
         `astro_session_${code}`,
         JSON.stringify(sessionData)
       );
+      console.log(`💾 Code ${code} sauvé en localStorage`);
+    } else {
+      console.warn(`⚠️ localStorage non disponible pour le code ${code}`);
     }
 
     return code;
@@ -38,18 +43,36 @@ export class SessionShare {
 
   // Récupérer une session par code
   getSession(code) {
+    console.log(`🔍 Recherche session pour code: ${code}`);
+
     // Vérifier d'abord en mémoire
     let session = this.sessions.get(code);
+    console.log(`📝 Session en mémoire:`, session ? "TROUVÉE" : "PAS TROUVÉE");
 
     // Si pas en mémoire, vérifier localStorage
     if (!session && typeof localStorage !== "undefined") {
+      console.log(`🔍 Recherche en localStorage: astro_session_${code}`);
       const stored = localStorage.getItem(`astro_session_${code}`);
       if (stored) {
+        console.log(
+          `💾 Session trouvée en localStorage:`,
+          stored.substring(0, 100) + "..."
+        );
         try {
           session = JSON.parse(stored);
           if (session.expires > Date.now()) {
+            console.log(
+              `✅ Session valide, expires dans ${Math.round(
+                (session.expires - Date.now()) / 1000 / 60
+              )} minutes`
+            );
             this.sessions.set(code, session);
           } else {
+            console.log(
+              `❌ Session expirée depuis ${Math.round(
+                (Date.now() - session.expires) / 1000
+              )} secondes`
+            );
             localStorage.removeItem(`astro_session_${code}`);
             session = null;
           }
@@ -57,11 +80,23 @@ export class SessionShare {
           console.warn("Erreur parsing session:", error);
           localStorage.removeItem(`astro_session_${code}`);
         }
+      } else {
+        console.log(`❌ Aucune session trouvée en localStorage`);
+
+        // Debug: lister toutes les clés localStorage
+        console.log(`🔍 Clés localStorage disponibles:`);
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("astro_session_")) {
+            console.log(`  - ${key}`);
+          }
+        }
       }
     }
 
-    // Vérifier l'expiration
+    // Vérification finale d'expiration
     if (session && session.expires < Date.now()) {
+      console.log(`❌ Session expirée à la vérification finale`);
       this.sessions.delete(code);
       if (typeof localStorage !== "undefined") {
         localStorage.removeItem(`astro_session_${code}`);
@@ -69,6 +104,10 @@ export class SessionShare {
       return null;
     }
 
+    console.log(
+      `🎯 Résultat final:`,
+      session ? "SESSION VALIDE" : "AUCUNE SESSION"
+    );
     return session;
   }
 
