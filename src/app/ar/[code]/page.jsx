@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { sessionShare } from "@/lib/session/SessionShare";
+import { arCodeShare } from "@/lib/session/ARCodeShare";
 import { ARSession } from "@/lib/webxr/ARSession";
 import { useARSupport } from "@/lib/hooks/useARSupport";
 import { toast } from "sonner";
@@ -21,57 +21,61 @@ export default function ARPage() {
   const [showInstructions, setShowInstructions] = useState(true);
 
   useEffect(() => {
-    const code = params.code;
-    console.log(`🎬 Page AR chargée avec code: ${code}`);
+    const loadARCode = async () => {
+      const code = params.code;
+      console.log(`🎬 Page AR chargée avec code: ${code}`);
 
-    if (!code) {
-      console.log(`❌ Aucun code fourni`);
-      setStatus("error");
-      setError("Code de partage manquant");
-      return;
-    }
-
-    // Récupérer la session de partage
-    console.log(`🔍 Tentative de récupération de session...`);
-    const session = sessionShare.getSession(code);
-
-    if (!session) {
-      console.log(`❌ Aucune session trouvée pour le code ${code}`);
-      setStatus("error");
-      setError("Code de partage invalide ou expiré");
-      return;
-    }
-
-    console.log(`✅ Session trouvée:`, session);
-
-    // Extraire les données du modèle depuis la session AR
-    try {
-      // Pour les sessions AR, les données sont stockées directement dans la session
-      const modelURL = session.modelURL;
-      const title = session.title || "Modèle 3D";
-      const moduleTitle = session.moduleTitle || "";
-
-      console.log("Session AR récupérée:", session);
-      console.log("Données extraites:", { modelURL, title, moduleTitle });
-
-      if (!modelURL) {
+      if (!code) {
+        console.log(`❌ Aucun code fourni`);
         setStatus("error");
-        setError("Aucun modèle 3D associé à ce code");
+        setError("Code de partage manquant");
         return;
       }
 
-      setModelData({
-        modelURL,
-        title,
-        moduleTitle,
-      });
+      // Récupérer le code AR depuis Firebase
+      console.log(`🔍 Tentative de récupération du code AR depuis Firebase...`);
 
-      setStatus("ready");
-    } catch (error) {
-      console.error("Erreur extraction données AR:", error);
-      setStatus("error");
-      setError("Données de partage AR invalides");
-    }
+      try {
+        const codeData = await arCodeShare.getARCode(code);
+
+        if (!codeData) {
+          console.log(`❌ Aucun code AR trouvé pour le code ${code}`);
+          setStatus("error");
+          setError("Code de partage invalide ou expiré");
+          return;
+        }
+
+        console.log(`✅ Code AR trouvé:`, codeData);
+
+        // Extraire les données du modèle depuis le code AR
+        const modelURL = codeData.modelURL;
+        const title = codeData.title || "Modèle 3D";
+        const moduleTitle = codeData.moduleTitle || "";
+
+        console.log("Code AR récupéré:", codeData);
+        console.log("Données extraites:", { modelURL, title, moduleTitle });
+
+        if (!modelURL) {
+          setStatus("error");
+          setError("Aucun modèle 3D associé à ce code");
+          return;
+        }
+
+        setModelData({
+          modelURL,
+          title,
+          moduleTitle,
+        });
+
+        setStatus("ready");
+      } catch (error) {
+        console.error("Erreur récupération code AR:", error);
+        setStatus("error");
+        setError("Erreur lors de la récupération du code de partage");
+      }
+    };
+
+    loadARCode();
   }, [params.code]);
 
   useEffect(() => {

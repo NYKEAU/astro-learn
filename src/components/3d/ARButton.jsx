@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useARSupport } from "@/lib/hooks/useARSupport";
-import { sessionShare } from "@/lib/session/SessionShare";
+import { arCodeShare } from "@/lib/session/ARCodeShare";
 import { toast } from "sonner";
 
 export function ARButton({
@@ -39,15 +39,18 @@ export function ARButton({
     setIsGenerating(true);
     try {
       // Générer un code AR et rediriger vers la page dédiée
-      const code = sessionShare.generateSessionCode({
-        type: "ar",
+      const code = await arCodeShare.generateARCode(
         modelURL,
         title,
-        moduleTitle,
-      });
+        moduleTitle
+      );
 
-      // Rediriger vers la page AR dédiée
-      router.push(`/ar/${code}`);
+      if (code) {
+        // Rediriger vers la page AR dédiée
+        router.push(`/ar/${code}`);
+      } else {
+        throw new Error("Impossible de générer le code AR");
+      }
     } catch (error) {
       console.error("Erreur génération AR:", error);
       toast.error(

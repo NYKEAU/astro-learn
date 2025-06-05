@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNetworkInfo } from "@/lib/hooks/useNetworkInfo";
-import { sessionShare } from "@/lib/session/SessionShare";
+import { arCodeShare } from "@/lib/session/ARCodeShare";
+import { toast } from "react-hot-toast";
 
 export function DesktopControls({
   autoRotate,
@@ -44,22 +45,28 @@ export function DesktopControls({
   ];
 
   // Générer un code de partage AR unique pour les deux modes
-  const generateShareCode = () => {
-    const code = sessionShare.generateSessionCode({
-      type: "ar",
-      modelURL,
-      title,
-      moduleTitle,
-    });
-    setShareCode(code);
+  const generateShareCode = async () => {
+    try {
+      const code = await arCodeShare.generateARCode(
+        modelURL,
+        title,
+        moduleTitle
+      );
+      setShareCode(code);
 
-    // Générer l'URL AR avec ce même code
-    const url = `${
-      typeof window !== "undefined" ? window.location.origin : ""
-    }/ar/${code}`;
-    setArURL(url);
+      // Générer l'URL AR avec ce même code
+      const url = arCodeShare.generateARShareURL(
+        code,
+        typeof window !== "undefined" ? window.location.origin : ""
+      );
+      setArURL(url);
 
-    return code;
+      return code;
+    } catch (error) {
+      console.error("Erreur génération code AR:", error);
+      toast.error("Impossible de générer le code AR");
+      return null;
+    }
   };
 
   // QR Code URL basé sur l'URL AR générée
@@ -69,11 +76,11 @@ export function DesktopControls({
       )}`
     : "";
 
-  const handleShareClick = () => {
+  const handleShareClick = async () => {
     setShowQRModal(true);
     // Générer le code dès l'ouverture pour que QR et code manuel soient identiques
     if (!shareCode) {
-      generateShareCode();
+      await generateShareCode();
     }
   };
 

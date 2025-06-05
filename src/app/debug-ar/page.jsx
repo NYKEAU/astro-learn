@@ -1,83 +1,111 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { sessionShare } from "@/lib/session/SessionShare";
+import { arCodeShare } from "@/lib/session/ARCodeShare";
 
 export default function DebugARPage() {
-  const [sessions, setSessions] = useState([]);
-  const [localStorageSessions, setLocalStorageSessions] = useState([]);
+  const [testCodes, setTestCodes] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [testInput, setTestInput] = useState("");
 
   useEffect(() => {
-    loadSessions();
-    const interval = setInterval(loadSessions, 1000);
-    return () => clearInterval(interval);
+    // Charger les codes de test depuis localStorage
+    const saved = localStorage.getItem("debug_ar_codes");
+    if (saved) {
+      try {
+        setTestCodes(JSON.parse(saved));
+      } catch (error) {
+        console.warn("Erreur chargement codes debug:", error);
+      }
+    }
   }, []);
 
-  const loadSessions = () => {
-    // Sessions en mémoire
-    const memorySessions = [];
-    for (const [code, session] of sessionShare.sessions.entries()) {
-      memorySessions.push({ code, session, source: "memory" });
-    }
-    setSessions(memorySessions);
-
-    // Sessions en localStorage
-    const storageSessions = [];
-    if (typeof localStorage !== "undefined") {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith("astro_session_")) {
-          try {
-            const session = JSON.parse(localStorage.getItem(key));
-            const code = key.replace("astro_session_", "");
-            storageSessions.push({
-              code,
-              session,
-              source: "localStorage",
-              expired: session.expires < Date.now(),
-            });
-          } catch (error) {
-            storageSessions.push({
-              code: key.replace("astro_session_", ""),
-              session: { error: error.message },
-              source: "localStorage",
-              expired: true,
-            });
-          }
-        }
-      }
-    }
-    setLocalStorageSessions(storageSessions);
+  const saveTestCodes = (codes) => {
+    setTestCodes(codes);
+    localStorage.setItem("debug_ar_codes", JSON.stringify(codes));
   };
 
-  const generateTestCode = () => {
-    const code = sessionShare.generateSessionCode({
-      type: "ar",
-      modelURL: "https://example.com/model.glb",
-      title: "Test Model",
-      moduleTitle: "Test Module",
-    });
-    console.log("Code de test généré:", code);
-    loadSessions();
+  const generateTestCode = async () => {
+    setIsLoading(true);
+    try {
+      const code = await arCodeShare.generateARCode(
+        "/models/saturn_1.glb",
+        "Saturne (Test Debug)",
+        "Module Test"
+      );
+      console.log("✅ Code de test généré:", code);
+
+      const newTestCode = {
+        code,
+        modelURL: "/models/saturn_1.glb",
+        title: "Saturne (Test Debug)",
+        moduleTitle: "Module Test",
+        timestamp: Date.now(),
+        expires: Date.now() + 30 * 60 * 1000,
+        status: "generated",
+      };
+
+      const updatedCodes = [newTestCode, ...testCodes.slice(0, 9)];
+      saveTestCodes(updatedCodes);
+    } catch (error) {
+      console.error("❌ Erreur génération code de test:", error);
+      alert(`Erreur: ${error.message}`);
+    }
+    setIsLoading(false);
   };
 
-  const clearAll = () => {
-    // Vider la mémoire
-    sessionShare.sessions.clear();
+  const testExistingCode = async (code) => {
+    setIsLoading(true);
+    try {
+      console.log(`🔍 Test du code: ${code}`);
+      const result = await arCodeShare.getARCode(code);
 
-    // Vider localStorage
-    if (typeof localStorage !== "undefined") {
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith("astro_session_")) {
-          keysToRemove.push(key);
-        }
+      if (result) {
+        console.log(`✅ Code ${code} valide:`, result);
+
+        // Mettre à jour le statut dans notre liste
+        const updatedCodes = testCodes.map((tc) =>
+          tc.code === code
+            ? { ...tc, status: "valid", lastTest: Date.now(), data: result }
+            : tc
+        );
+        saveTestCodes(updatedCodes);
+
+        alert(
+          `✅ Code ${code} VALIDE!\nModèle: ${result.title}\nModule: ${result.moduleTitle}`
+        );
+      } else {
+        console.log(`❌ Code ${code} invalide`);
+
+        // Mettre à jour le statut
+        const updatedCodes = testCodes.map((tc) =>
+          tc.code === code
+            ? { ...tc, status: "invalid", lastTest: Date.now() }
+            : tc
+        );
+        saveTestCodes(updatedCodes);
+
+        alert(`❌ Code ${code} invalide ou expiré`);
       }
-      keysToRemove.forEach((key) => localStorage.removeItem(key));
+    } catch (error) {
+      console.error(`❌ Erreur test code ${code}:`, error);
+      alert(`Erreur test: ${error.message}`);
     }
+    setIsLoading(false);
+  };
 
-    loadSessions();
+  const testManualCode = async () => {
+    if (!testInput.trim()) {
+      alert("Veuillez saisir un code");
+      return;
+    }
+    await testExistingCode(testInput.trim().toUpperCase());
+    setTestInput("");
+  };
+
+  const clearTestCodes = () => {
+    setTestCodes([]);
+    localStorage.removeItem("debug_ar_codes");
   };
 
   const formatTime = (timestamp) => {
@@ -92,96 +120,158 @@ export default function DebugARPage() {
     return `${minutes}m ${seconds}s`;
   };
 
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "valid":
+        return "border-green-500 bg-green-500/10";
+      case "invalid":
+        return "border-red-500 bg-red-500/10";
+      case "generated":
+        return "border-neon-blue bg-neon-blue/10";
+      default:
+        return "border-lunar-white/30 bg-cosmic-black/30";
+    }
+  };
+
   return (
     <div className="min-h-screen bg-cosmic-black text-lunar-white p-4">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold text-neon-blue mb-6">
-          Debug AR Sessions
+          🔧 Debug AR Codes (Firebase)
         </h1>
 
-        <div className="mb-6 flex gap-4">
+        {/* Actions */}
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
           <button
             onClick={generateTestCode}
-            className="px-4 py-2 bg-neon-blue text-cosmic-black rounded-lg hover:bg-neon-blue/80"
+            disabled={isLoading}
+            className="px-4 py-3 bg-neon-blue text-cosmic-black rounded-lg hover:bg-neon-blue/80 disabled:opacity-50 font-medium"
           >
-            Générer Code Test
+            {isLoading ? "⏳ Génération..." : "🧪 Générer Code Test"}
           </button>
+
           <button
-            onClick={clearAll}
-            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+            onClick={clearTestCodes}
+            className="px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium"
           >
-            Tout Effacer
+            🗑️ Effacer Historique
           </button>
-          <button
-            onClick={loadSessions}
-            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-          >
-            Rafraîchir
-          </button>
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={testInput}
+              onChange={(e) => setTestInput(e.target.value.toUpperCase())}
+              placeholder="CODE"
+              className="flex-1 px-3 py-2 bg-cosmic-black/50 border border-lunar-white/30 rounded text-lunar-white placeholder-lunar-white/50"
+              maxLength="6"
+            />
+            <button
+              onClick={testManualCode}
+              disabled={isLoading}
+              className="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600 disabled:opacity-50"
+            >
+              Test
+            </button>
+          </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Sessions en mémoire */}
-          <div className="bg-cosmic-black/50 p-6 rounded-lg border border-neon-blue/30">
-            <h2 className="text-xl font-bold text-neon-blue mb-4">
-              Sessions en Mémoire ({sessions.length})
-            </h2>
-            {sessions.length === 0 ? (
-              <p className="text-lunar-white/60">Aucune session en mémoire</p>
-            ) : (
-              sessions.map(({ code, session }) => (
-                <div
-                  key={code}
-                  className="mb-4 p-3 bg-cosmic-black/30 rounded border-l-4 border-neon-blue"
-                >
-                  <div className="font-mono text-neon-blue text-lg">{code}</div>
-                  <div className="text-sm text-lunar-white/80">
-                    <div>Type: {session.type}</div>
-                    <div>Créé: {formatTime(session.timestamp)}</div>
-                    <div>Expire: {getTimeRemaining(session.expires)}</div>
-                    <div>Model: {session.modelURL ? "✅" : "❌"}</div>
-                    <div>Title: {session.title || "N/A"}</div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+        {/* Codes de test */}
+        <div className="bg-cosmic-black/50 p-6 rounded-lg border border-neon-blue/30">
+          <h2 className="text-xl font-bold text-neon-blue mb-4">
+            Codes de Test ({testCodes.length})
+          </h2>
 
-          {/* Sessions en localStorage */}
-          <div className="bg-cosmic-black/50 p-6 rounded-lg border border-neon-pink/30">
-            <h2 className="text-xl font-bold text-neon-pink mb-4">
-              Sessions en localStorage ({localStorageSessions.length})
-            </h2>
-            {localStorageSessions.length === 0 ? (
-              <p className="text-lunar-white/60">
-                Aucune session en localStorage
-              </p>
-            ) : (
-              localStorageSessions.map(({ code, session, expired }) => (
+          {testCodes.length === 0 ? (
+            <p className="text-lunar-white/60 text-center py-8">
+              Aucun code de test. Générez-en un pour commencer !
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {testCodes.map((tc, index) => (
                 <div
-                  key={code}
-                  className={`mb-4 p-3 bg-cosmic-black/30 rounded border-l-4 ${
-                    expired ? "border-red-500" : "border-neon-pink"
-                  }`}
+                  key={tc.code}
+                  className={`p-4 rounded-lg border-2 ${getStatusColor(
+                    tc.status
+                  )}`}
                 >
-                  <div className="font-mono text-neon-pink text-lg">{code}</div>
-                  {session.error ? (
-                    <div className="text-red-400">Erreur: {session.error}</div>
-                  ) : (
-                    <div className="text-sm text-lunar-white/80">
-                      <div>Type: {session.type}</div>
-                      <div>Créé: {formatTime(session.timestamp)}</div>
-                      <div className={expired ? "text-red-400" : ""}>
-                        Expire: {getTimeRemaining(session.expires)}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-mono text-xl text-neon-blue">
+                      {tc.code}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => testExistingCode(tc.code)}
+                        disabled={isLoading}
+                        className="px-3 py-1 bg-amber-500 text-white text-sm rounded hover:bg-amber-600 disabled:opacity-50"
+                      >
+                        {isLoading ? "⏳" : "🔍 Test"}
+                      </button>
+                      <a
+                        href={`/ar/${tc.code}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1 bg-neon-pink text-white text-sm rounded hover:bg-neon-pink/80"
+                      >
+                        🚀 Ouvrir
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <div className="text-lunar-white/70">Modèle:</div>
+                      <div>{tc.title}</div>
+                      <div className="text-lunar-white/70 mt-1">Module:</div>
+                      <div>{tc.moduleTitle}</div>
+                    </div>
+                    <div>
+                      <div className="text-lunar-white/70">Généré:</div>
+                      <div>{formatTime(tc.timestamp)}</div>
+                      <div className="text-lunar-white/70 mt-1">Expire:</div>
+                      <div
+                        className={
+                          tc.expires < Date.now()
+                            ? "text-red-400"
+                            : "text-green-400"
+                        }
+                      >
+                        {getTimeRemaining(tc.expires)}
                       </div>
-                      <div>Model: {session.modelURL ? "✅" : "❌"}</div>
-                      <div>Title: {session.title || "N/A"}</div>
+                    </div>
+                  </div>
+
+                  {tc.status && (
+                    <div className="mt-2 pt-2 border-t border-lunar-white/20">
+                      <div className="text-xs">
+                        <span className="text-lunar-white/70">Statut: </span>
+                        <span
+                          className={
+                            tc.status === "valid"
+                              ? "text-green-400"
+                              : tc.status === "invalid"
+                              ? "text-red-400"
+                              : "text-neon-blue"
+                          }
+                        >
+                          {tc.status === "valid"
+                            ? "✅ Valide"
+                            : tc.status === "invalid"
+                            ? "❌ Invalide"
+                            : "🆕 Généré"}
+                        </span>
+                        {tc.lastTest && (
+                          <span className="text-lunar-white/50 ml-2">
+                            (testé à {formatTime(tc.lastTest)})
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Infos système */}
@@ -189,45 +279,47 @@ export default function DebugARPage() {
           <h2 className="text-xl font-bold text-lunar-white mb-4">
             Infos Système
           </h2>
-          <div className="grid md:grid-cols-3 gap-4 text-sm">
+          <div className="grid md:grid-cols-2 gap-4 text-sm">
             <div>
-              <div className="font-semibold">localStorage:</div>
-              <div>
-                {typeof localStorage !== "undefined"
-                  ? "✅ Disponible"
-                  : "❌ Non disponible"}
+              <div className="font-semibold">Type de stockage:</div>
+              <div className="text-neon-blue">🔥 Firebase Storage</div>
+            </div>
+            <div>
+              <div className="font-semibold">Dossier AR:</div>
+              <div className="font-mono text-neon-pink">
+                /arcode/{"{code}"}.json
               </div>
             </div>
             <div>
-              <div className="font-semibold">Instance sessionShare:</div>
-              <div>{sessionShare ? "✅ Chargée" : "❌ Non chargée"}</div>
+              <div className="font-semibold">Expiration:</div>
+              <div>30 minutes</div>
             </div>
             <div>
-              <div className="font-semibold">Timestamp actuel:</div>
-              <div>{Date.now()}</div>
+              <div className="font-semibold">Timestamp:</div>
+              <div className="font-mono">{Date.now()}</div>
             </div>
           </div>
         </div>
 
-        {/* Liens de test */}
-        <div className="mt-6 bg-cosmic-black/50 p-6 rounded-lg border border-amber-500/30">
-          <h2 className="text-xl font-bold text-amber-400 mb-4">
-            Liens de Test
-          </h2>
-          <div className="space-y-2">
-            {sessions.map(({ code }) => (
-              <div key={code} className="flex items-center gap-4">
-                <span className="font-mono text-neon-blue">{code}</span>
-                <a
-                  href={`/ar/${code}`}
-                  className="text-amber-400 hover:text-amber-300 underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  /ar/{code}
-                </a>
-              </div>
-            ))}
+        {/* Instructions */}
+        <div className="mt-6 bg-amber-500/10 border border-amber-500/30 p-4 rounded-lg">
+          <h3 className="font-bold text-amber-400 mb-2">📋 Instructions</h3>
+          <div className="text-sm text-amber-200 space-y-1">
+            <p>
+              • <strong>Générer Code Test</strong>: Crée un nouveau code AR avec
+              Saturne
+            </p>
+            <p>
+              • <strong>Test</strong>: Vérifie si un code existe et est valide
+              sur Firebase
+            </p>
+            <p>
+              • <strong>Ouvrir</strong>: Lance la page AR avec le code
+            </p>
+            <p>
+              • Les codes sont maintenant{" "}
+              <strong>partagés entre appareils</strong> via Firebase! 🎉
+            </p>
           </div>
         </div>
       </div>
