@@ -57,19 +57,32 @@ export class ARSession {
           }
         }
 
-        // Test getUserMedia pour s'assurer que la caméra est accessible
+        // Forcer la demande de permissions caméra pour WebXR
         try {
+          console.log("📹 Demande FORCÉE d'accès caméra pour WebXR...");
           const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
+            video: {
+              facingMode: "environment", // Caméra arrière pour AR
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
           });
-          console.log("✅ Accès caméra confirmé");
-          // Fermer le stream immédiatement, WebXR s'en occupera
-          stream.getTracks().forEach((track) => track.stop());
+          console.log("✅ Accès caméra confirmé et autorisé");
+          console.log("📹 Stream vidéo:", {
+            tracks: stream.getVideoTracks().length,
+            settings: stream.getVideoTracks()[0]?.getSettings(),
+          });
+
+          // Important : garder le stream actif un moment pour WebXR
+          setTimeout(() => {
+            stream.getTracks().forEach((track) => track.stop());
+            console.log("📹 Stream fermé, WebXR prendra le relais");
+          }, 1000);
         } catch (mediaError) {
           console.error("❌ Erreur accès caméra via getUserMedia:", mediaError);
           if (mediaError.name === "NotAllowedError") {
             throw new Error(
-              "Accès caméra refusé. Veuillez autoriser l'accès à la caméra."
+              "Accès caméra refusé. Veuillez autoriser l'accès à la caméra et recharger la page."
             );
           }
           throw new Error(`Erreur caméra: ${mediaError.message}`);
@@ -362,9 +375,28 @@ export class ARSession {
   }
 
   render(timestamp, frame) {
+    // Debug première frame
+    if (!this._firstFrameLogged && frame) {
+      console.log("🎬 Première frame WebXR reçue:", {
+        timestamp,
+        hasFrame: !!frame,
+        session: !!this.session,
+        renderer: !!this.renderer,
+        scene: !!this.scene,
+        camera: !!this.camera,
+      });
+      this._firstFrameLogged = true;
+    }
+
     if (frame) {
       // Gérer le hit testing pour le réticule
       this.handleHitTest(frame);
+    } else {
+      // Pas de frame WebXR - problème !
+      if (!this._noFrameWarned) {
+        console.warn("⚠️ Aucune frame WebXR reçue - caméra non active?");
+        this._noFrameWarned = true;
+      }
     }
 
     // Faire tourner le modèle s'il est placé
