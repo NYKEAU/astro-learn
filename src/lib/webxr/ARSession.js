@@ -40,56 +40,50 @@ export class ARSession {
       }
       console.log("✅ AR supportée");
 
-      // Vérifier les permissions caméra avant la session AR
-      console.log("📹 Vérification permissions caméra...");
+      // FORCER la demande d'accès caméra AVANT WebXR (obligatoire!)
+      console.log("📹 DEMANDE OBLIGATOIRE de permissions caméra...");
+      let cameraStream = null;
+
       try {
-        if (navigator.permissions) {
-          const cameraPermission = await navigator.permissions.query({
-            name: "camera",
-          });
-          console.log("📹 Permission caméra:", cameraPermission.state);
+        console.log("📹 getUserMedia avec facingMode environment...");
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "environment", // Caméra arrière pour AR
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
 
-          if (cameraPermission.state === "denied") {
-            console.warn("⚠️ Permission caméra refusée");
-            throw new Error(
-              "Permission caméra refusée. Veuillez autoriser l'accès à la caméra."
-            );
-          }
+        console.log("✅ CAMÉRA AUTORISÉE !", {
+          tracks: cameraStream.getVideoTracks().length,
+          trackSettings: cameraStream.getVideoTracks()[0]?.getSettings(),
+          trackLabel: cameraStream.getVideoTracks()[0]?.label,
+        });
+
+        // Tester le feed vidéo
+        const videoTrack = cameraStream.getVideoTracks()[0];
+        if (videoTrack) {
+          console.log("📹 Test feed vidéo:", {
+            enabled: videoTrack.enabled,
+            readyState: videoTrack.readyState,
+            muted: videoTrack.muted,
+          });
         }
+      } catch (mediaError) {
+        console.error("❌ ERREUR CRITIQUE - Pas d'accès caméra:", mediaError);
+        console.error("🔍 Type:", mediaError.name);
+        console.error("🔍 Message:", mediaError.message);
 
-        // Forcer la demande de permissions caméra pour WebXR
-        try {
-          console.log("📹 Demande FORCÉE d'accès caméra pour WebXR...");
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: "environment", // Caméra arrière pour AR
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
-          });
-          console.log("✅ Accès caméra confirmé et autorisé");
-          console.log("📹 Stream vidéo:", {
-            tracks: stream.getVideoTracks().length,
-            settings: stream.getVideoTracks()[0]?.getSettings(),
-          });
-
-          // Important : garder le stream actif un moment pour WebXR
-          setTimeout(() => {
-            stream.getTracks().forEach((track) => track.stop());
-            console.log("📹 Stream fermé, WebXR prendra le relais");
-          }, 1000);
-        } catch (mediaError) {
-          console.error("❌ Erreur accès caméra via getUserMedia:", mediaError);
-          if (mediaError.name === "NotAllowedError") {
-            throw new Error(
-              "Accès caméra refusé. Veuillez autoriser l'accès à la caméra et recharger la page."
-            );
-          }
-          throw new Error(`Erreur caméra: ${mediaError.message}`);
+        if (mediaError.name === "NotAllowedError") {
+          throw new Error(
+            "❌ Permission caméra REFUSÉE. Rechargez et autorisez l'accès à la caméra."
+          );
+        } else if (mediaError.name === "NotFoundError") {
+          throw new Error("❌ Aucune caméra trouvée sur cet appareil.");
+        } else if (mediaError.name === "NotReadableError") {
+          throw new Error("❌ Caméra occupée par une autre application.");
         }
-      } catch (permError) {
-        console.warn("⚠️ Impossible de vérifier permissions:", permError);
-        // Continuer quand même, certains appareils ne supportent pas l'API permissions
+        throw new Error(`❌ Erreur caméra: ${mediaError.message}`);
       }
 
       // Créer la session AR avec la configuration
@@ -107,16 +101,28 @@ export class ARSession {
         console.log("🎭 DOM Overlay configuré avec div dédié");
       }
 
-      console.log("🚀 Demande de session AR...", {
+      console.log("🚀 Demande de session AR (caméra pré-autorisée)...", {
         requiredFeatures: sessionOptions.requiredFeatures,
         optionalFeatures: sessionOptions.optionalFeatures,
         hasDomOverlay: !!sessionOptions.domOverlay,
+        cameraStreamActive: !!cameraStream,
       });
+
       try {
+        // Demander la session WebXR maintenant que la caméra est autorisée
         this.session = await navigator.xr.requestSession(
           "immersive-ar",
           sessionOptions
         );
+
+        // Fermer notre stream manuel maintenant que WebXR prend le relais
+        if (cameraStream) {
+          console.log(
+            "📹 Fermeture du stream manuel, WebXR prend le relais..."
+          );
+          cameraStream.getTracks().forEach((track) => track.stop());
+          cameraStream = null;
+        }
         console.log("✅ Session AR créée:", this.session);
         console.log("📱 Vérification état session:", {
           renderState: this.session.renderState,
@@ -155,9 +161,25 @@ export class ARSession {
       // Configurer les événements
       this.setupEventListeners();
 
-      // Démarrer la boucle de rendu
+      // Démarrer la boucle de rendu avec debug WebXR
       console.log("🔄 Démarrage de la boucle de rendu...");
+      this._frameCount = 0;
       this.renderer.setAnimationLoop(this.render.bind(this));
+
+      // Vérifier les frames WebXR après 2 secondes
+      setTimeout(() => {
+        console.log("🔍 État frames WebXR après 2s:", {
+          frameCount: this._frameCount,
+          sessionActive: !!this.session,
+          rendererXREnabled: this.renderer.xr.enabled,
+          sessionMode: this.session?.environmentBlendMode,
+        });
+
+        if (this._frameCount === 0) {
+          console.error("❌ PROBLÈME: Aucune frame WebXR après 2s!");
+          console.error("💡 Possible: ARCore/ARKit ne démarre pas");
+        }
+      }, 2000);
 
       // Vérifier que le canvas est visible
       setTimeout(() => {
@@ -375,26 +397,40 @@ export class ARSession {
   }
 
   render(timestamp, frame) {
-    // Debug première frame
-    if (!this._firstFrameLogged && frame) {
-      console.log("🎬 Première frame WebXR reçue:", {
-        timestamp,
-        hasFrame: !!frame,
-        session: !!this.session,
-        renderer: !!this.renderer,
-        scene: !!this.scene,
-        camera: !!this.camera,
-      });
-      this._firstFrameLogged = true;
-    }
-
+    // Compter les frames reçues
     if (frame) {
+      this._frameCount = (this._frameCount || 0) + 1;
+
+      // Debug première frame avec plus de détails
+      if (!this._firstFrameLogged) {
+        console.log("🎬 PREMIÈRE FRAME WebXR reçue:", {
+          timestamp,
+          frameNumber: this._frameCount,
+          session: !!this.session,
+          sessionEnvBlendMode: this.session?.environmentBlendMode,
+          hasCamera: !!frame.session?.inputSources,
+          viewerPose: !!frame.getViewerPose,
+        });
+        this._firstFrameLogged = true;
+      }
+
+      // Log périodique des frames
+      if (this._frameCount % 60 === 0) {
+        console.log(`📊 Frame WebXR #${this._frameCount} - AR actif`);
+      }
+
       // Gérer le hit testing pour le réticule
       this.handleHitTest(frame);
     } else {
-      // Pas de frame WebXR - problème !
+      // Pas de frame WebXR - problème critique !
       if (!this._noFrameWarned) {
-        console.warn("⚠️ Aucune frame WebXR reçue - caméra non active?");
+        console.error("❌ CRITIQUE: Aucune frame WebXR reçue!");
+        console.error("🔍 Debug session:", {
+          sessionExists: !!this.session,
+          sessionInputSources: this.session?.inputSources?.length || 0,
+          rendererXR: this.renderer.xr.enabled,
+          environmentBlendMode: this.session?.environmentBlendMode,
+        });
         this._noFrameWarned = true;
       }
     }
