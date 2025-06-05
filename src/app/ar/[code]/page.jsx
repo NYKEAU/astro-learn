@@ -20,7 +20,7 @@ export default function ARPage() {
   const [arSession, setArSession] = useState(null);
   const [isPlaced, setIsPlaced] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
-  const [showDebug, setShowDebug] = useState(false);
+  const [showDebug, setShowDebug] = useState(true); // Activé par défaut pour debug
 
   useEffect(() => {
     const loadARCode = async () => {
@@ -99,22 +99,36 @@ export default function ARPage() {
   }, [arSession, isPlaced]);
 
   const startAR = async () => {
+    console.log("🚀 DÉBUT startAR()");
+    console.log("📱 isARSupported:", isARSupported);
+    console.log("📄 modelData:", modelData);
+
     if (!isARSupported) {
+      console.log("❌ AR non supportée");
       toast.error("La réalité augmentée n'est pas disponible sur cet appareil");
       return;
     }
 
     try {
+      console.log("🎬 Changement status vers ar-active");
       setStatus("ar-active");
+
+      console.log("🔧 Création ARSession...");
       const session = new ARSession();
+
+      console.log("⚡ Initialisation ARSession...");
       await session.init(modelData.modelURL, "fr");
+
+      console.log("✅ ARSession initialisée, mise à jour state");
       setArSession(session);
 
+      console.log("🎉 Succès AR - affichage toast");
       toast.success(
         "Session AR démarrée ! Pointez votre caméra vers une surface plane"
       );
     } catch (error) {
-      console.error("Erreur AR:", error);
+      console.error("❌ ERREUR GLOBALE AR:", error);
+      console.log("🔄 Retour au status ready");
       setStatus("ready");
       toast.error("Impossible de démarrer la réalité augmentée");
     }
@@ -283,24 +297,46 @@ export default function ARPage() {
               className="h-8 w-auto"
             />
           </div>
-          <button
-            onClick={goHome}
-            className="flex items-center gap-2 text-lunar-white/70 hover:text-neon-blue transition-colors"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowDebug(!showDebug)}
+              className="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              Debug
+            </button>
+
+            <button
+              onClick={goHome}
+              className="flex items-center gap-2 text-lunar-white/70 hover:text-neon-blue transition-colors"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -496,6 +532,12 @@ export default function ARPage() {
           </p>
         </div>
       </div>
+
+      {/* Debug overlay global - toujours présent */}
+      <MobileDebugOverlay
+        isVisible={showDebug}
+        onToggle={() => setShowDebug(!showDebug)}
+      />
     </div>
   );
 }

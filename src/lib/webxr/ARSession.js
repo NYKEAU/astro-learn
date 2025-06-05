@@ -80,11 +80,15 @@ export class ARSession {
       }
 
       // Créer la session AR avec la configuration
-      console.log("🚀 Demande de session AR...", WEBXR_CONFIG.sessionOptions);
+      const sessionOptions = {
+        ...WEBXR_CONFIG.sessionOptions,
+        domOverlay: { root: document.body },
+      };
+      console.log("🚀 Demande de session AR...", sessionOptions);
       try {
         this.session = await navigator.xr.requestSession(
           "immersive-ar",
-          WEBXR_CONFIG.sessionOptions
+          sessionOptions
         );
         console.log("✅ Session AR créée:", this.session);
         console.log("📱 Vérification état session:", {
