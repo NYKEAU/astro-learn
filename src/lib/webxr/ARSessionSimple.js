@@ -200,7 +200,10 @@ export class ARSessionSimple {
           const center = box.getCenter(new THREE.Vector3());
           this.model.position.sub(center.multiplyScalar(scale));
 
+          // Configuration pour WebXR
           this.model.visible = false;
+          this.model.matrixAutoUpdate = true; // Activé par défaut, désactivé après placement
+
           this.scene.add(this.model);
 
           console.log("📦 Modèle 3D chargé");
@@ -215,20 +218,23 @@ export class ARSessionSimple {
   async setupReferenceSpaces() {
     console.log("🎯 Configuration des reference spaces...");
 
+    // Configurer le local reference space pour le rendu (AVANT viewer space)
+    const localSpace = await this.session.requestReferenceSpace("local");
+    this.xrRefSpace = localSpace;
+    console.log("✅ Local reference space configuré");
+
     // Configurer le viewer space pour le hit testing (comme la démo Hit Test)
+    // Le viewer space suit toujours la caméra
     const viewerSpace = await this.session.requestReferenceSpace("viewer");
     this.xrViewerSpace = viewerSpace;
+    console.log("✅ Viewer reference space configuré");
 
+    // Créer le hit test source avec viewer space (centre de l'écran)
     const hitTestSource = await this.session.requestHitTestSource({
       space: this.xrViewerSpace,
     });
     this.xrHitTestSource = hitTestSource;
-    console.log("✅ Hit test source créé");
-
-    // Configurer le local reference space pour le rendu
-    const localSpace = await this.session.requestReferenceSpace("local");
-    this.xrRefSpace = localSpace;
-    console.log("✅ Reference spaces configurés");
+    console.log("✅ Hit test source créé avec viewer space");
 
     // Configurer les événements de selection (tap)
     this.session.addEventListener("select", this.onSelect.bind(this));
@@ -283,8 +289,8 @@ export class ARSessionSimple {
         }
       }
 
-      // Faire tourner le modèle s'il est placé
-      if (this.model && this.model.visible) {
+      // Faire tourner le modèle seulement s'il n'est pas encore placé de façon fixe
+      if (this.model && this.model.visible && this.model.matrixAutoUpdate) {
         this.model.rotation.y += 0.01;
       }
 
@@ -309,12 +315,14 @@ export class ARSessionSimple {
             viewport.height
           );
 
-          // Configurer la caméra avec la matrice de vue XR
+          // CRITIQUE: Configurer la caméra correctement pour WebXR
+          // La caméra doit utiliser la matrice de vue INVERSE
           this.camera.matrix.fromArray(view.transform.inverse.matrix);
           this.camera.projectionMatrix.fromArray(view.projectionMatrix);
+          this.camera.matrixWorldInverse.fromArray(view.transform.matrix);
           this.camera.updateMatrixWorld(true);
 
-          // Rendu de la scène
+          // Rendu de la scène dans l'espace local
           this.renderer.render(this.scene, this.camera);
         }
       }
@@ -335,37 +343,33 @@ export class ARSessionSimple {
   // Méthode pour placer le modèle au tap (à appeler depuis l'UI)
   placeModel() {
     if (this.reticle.visible && this.model) {
-      // Extraire la position du réticule et placer le modèle légèrement au-dessus
-      const reticlePosition = new THREE.Vector3();
-      const reticleQuaternion = new THREE.Quaternion();
-      const reticleScale = new THREE.Vector3();
+      // IMPORTANT: Copier directement la matrice du réticule comme dans la démo Hit Test
+      // Cela assure que le modèle est placé exactement où le hit test a détecté la surface
+      this.model.matrix.copy(this.reticle.matrix);
 
-      // Décomposer la matrice du réticule
-      this.reticle.matrix.decompose(
-        reticlePosition,
-        reticleQuaternion,
-        reticleScale
-      );
+      // Extraire la position pour l'ajustement en hauteur
+      const position = new THREE.Vector3();
+      const quaternion = new THREE.Quaternion();
+      const scale = new THREE.Vector3();
+      this.model.matrix.decompose(position, quaternion, scale);
 
-      // Placer le modèle à la position du réticule mais légèrement surélevé
-      this.model.position.copy(reticlePosition);
-      this.model.position.y += 0.1; // Soulever de 10cm au-dessus de la surface
+      // Légère élévation au-dessus de la surface
+      position.y += 0.05; // 5cm au-dessus
 
-      // Appliquer la rotation du réticule
-      this.model.quaternion.copy(reticleQuaternion);
+      // Reconstruire la matrice avec la nouvelle position et échelle fixe
+      const matrix = new THREE.Matrix4();
+      matrix.compose(position, quaternion, new THREE.Vector3(0.3, 0.3, 0.3)); // Échelle fixe
+      this.model.matrix.copy(matrix);
 
-      // S'assurer que le modèle a une taille appropriée
-      this.model.scale.setScalar(0.3); // 30cm de taille
-
+      // CRUCIAL: Désactiver matrixAutoUpdate pour garder la position fixe dans l'espace monde
+      this.model.matrixAutoUpdate = false;
       this.model.visible = true;
       this.isPlaced = true;
 
-      const action = this.isPlaced ? "repositionné" : "placé";
-      console.log(`📍 Modèle ${action} à la position:`, {
-        position: this.model.position,
-        reticlePosition: reticlePosition,
-        scale: this.model.scale,
-        distance: reticlePosition.distanceTo(new THREE.Vector3(0, 0, 0)),
+      console.log("📍 Modèle placé avec matrice fixe:", {
+        position: position,
+        hasMatrix: !!this.model.matrix,
+        matrixAutoUpdate: this.model.matrixAutoUpdate,
       });
     } else {
       console.log("⚠️ Impossible de placer le modèle:", {
