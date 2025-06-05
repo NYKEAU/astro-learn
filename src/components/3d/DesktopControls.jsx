@@ -17,6 +17,7 @@ export function DesktopControls({
   const [showQRModal, setShowQRModal] = useState(false);
   const [shareMode, setShareMode] = useState("qr"); // 'qr' ou 'code'
   const [shareCode, setShareCode] = useState("");
+  const [arURL, setArURL] = useState("");
   const { getMobileURL, localIP, isLoading } = useNetworkInfo();
 
   const animationModes = [
@@ -42,17 +43,7 @@ export function DesktopControls({
     },
   ];
 
-  // Générer l'URL AR pour mobile
-  const generateARURL = () => {
-    return sessionShare.generateARShareURL(modelURL, title, moduleTitle);
-  };
-
-  const mobileURL = generateARURL();
-  const qrCodeURL = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-    mobileURL
-  )}`;
-
-  // Générer un code de partage AR
+  // Générer un code de partage AR unique pour les deux modes
   const generateShareCode = () => {
     const code = sessionShare.generateSessionCode({
       type: "ar",
@@ -61,12 +52,27 @@ export function DesktopControls({
       moduleTitle,
     });
     setShareCode(code);
+
+    // Générer l'URL AR avec ce même code
+    const url = `${
+      typeof window !== "undefined" ? window.location.origin : ""
+    }/ar/${code}`;
+    setArURL(url);
+
     return code;
   };
 
+  // QR Code URL basé sur l'URL AR générée
+  const qrCodeURL = arURL
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+        arURL
+      )}`
+    : "";
+
   const handleShareClick = () => {
     setShowQRModal(true);
-    if (shareMode === "code" && !shareCode) {
+    // Générer le code dès l'ouverture pour que QR et code manuel soient identiques
+    if (!shareCode) {
       generateShareCode();
     }
   };
@@ -180,10 +186,7 @@ export function DesktopControls({
                   QR Code
                 </button>
                 <button
-                  onClick={() => {
-                    setShareMode("code");
-                    if (!shareCode) generateShareCode();
-                  }}
+                  onClick={() => setShareMode("code")}
                   className={`flex-1 py-2 px-3 rounded text-xs transition-colors ${
                     shareMode === "code"
                       ? "bg-neon-blue text-cosmic-black"

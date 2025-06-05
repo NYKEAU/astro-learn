@@ -38,15 +38,15 @@ export default function ARPage() {
       return;
     }
 
-    // Extraire les données du modèle depuis l'URL de session
+    // Extraire les données du modèle depuis la session AR
     try {
-      const targetURL = new URL(session.url);
-      const urlParams = new URLSearchParams(targetURL.search);
+      // Pour les sessions AR, les données sont stockées directement dans la session
+      const modelURL = session.modelURL;
+      const title = session.title || "Modèle 3D";
+      const moduleTitle = session.moduleTitle || "";
 
-      // Récupérer les paramètres du modèle depuis l'URL
-      const modelURL = urlParams.get("model") || session.modelURL;
-      const title = urlParams.get("title") || session.title || "Modèle 3D";
-      const moduleTitle = urlParams.get("module") || session.moduleTitle || "";
+      console.log("Session AR récupérée:", session);
+      console.log("Données extraites:", { modelURL, title, moduleTitle });
 
       if (!modelURL) {
         setStatus("error");
@@ -62,8 +62,9 @@ export default function ARPage() {
 
       setStatus("ready");
     } catch (error) {
+      console.error("Erreur extraction données AR:", error);
       setStatus("error");
-      setError("URL de partage invalide");
+      setError("Données de partage AR invalides");
     }
   }, [params.code]);
 

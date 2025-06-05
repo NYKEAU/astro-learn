@@ -11,6 +11,8 @@ export function MobileControls({
   onClose,
   language = "fr",
   modelURL,
+  title = "Modèle 3D",
+  moduleTitle = "",
 }) {
   const [showControls, setShowControls] = useState(true);
 
@@ -117,6 +119,8 @@ export function MobileControls({
             <div className="flex justify-center">
               <ARButton
                 modelURL={modelURL}
+                title={title}
+                moduleTitle={moduleTitle}
                 language={language}
                 className="w-full max-w-xs"
               />

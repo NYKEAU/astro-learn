@@ -415,6 +415,8 @@ export default function ModelViewer({
           onClose={onClose}
           language={language}
           modelURL={modelURL}
+          title={title}
+          moduleTitle={moduleTitle}
         />
       ) : (
         <DesktopControls
