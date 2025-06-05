@@ -4,9 +4,6 @@ export const WEBXR_CONFIG = {
   sessionOptions: {
     requiredFeatures: ["hit-test"],
     optionalFeatures: ["dom-overlay", "light-estimation", "anchors"],
-    domOverlay: {
-      root: document.body,
-    },
   },
 
   // Paramètres de rendu

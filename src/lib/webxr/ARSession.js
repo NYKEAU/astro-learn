@@ -80,11 +80,25 @@ export class ARSession {
       }
 
       // Créer la session AR avec la configuration
-      const sessionOptions = {
-        ...WEBXR_CONFIG.sessionOptions,
-        domOverlay: { root: document.body },
-      };
-      console.log("🚀 Demande de session AR...", sessionOptions);
+      let sessionOptions = { ...WEBXR_CONFIG.sessionOptions };
+
+      // Créer un div dédié pour domOverlay (évite les références circulaires)
+      if (sessionOptions.optionalFeatures.includes("dom-overlay")) {
+        const overlayRoot = document.createElement("div");
+        overlayRoot.id = "ar-overlay-root";
+        overlayRoot.style.cssText =
+          "position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999;";
+        document.body.appendChild(overlayRoot);
+
+        sessionOptions.domOverlay = { root: overlayRoot };
+        console.log("🎭 DOM Overlay configuré avec div dédié");
+      }
+
+      console.log("🚀 Demande de session AR...", {
+        requiredFeatures: sessionOptions.requiredFeatures,
+        optionalFeatures: sessionOptions.optionalFeatures,
+        hasDomOverlay: !!sessionOptions.domOverlay,
+      });
       try {
         this.session = await navigator.xr.requestSession(
           "immersive-ar",
@@ -325,6 +339,13 @@ export class ARSession {
       this.renderer.domElement.parentNode
     ) {
       this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+    }
+
+    // Nettoyer le DOM overlay si il existe
+    const overlayRoot = document.getElementById("ar-overlay-root");
+    if (overlayRoot && overlayRoot.parentNode) {
+      overlayRoot.parentNode.removeChild(overlayRoot);
+      console.log("🧹 DOM Overlay nettoyé");
     }
 
     this.session = null;
