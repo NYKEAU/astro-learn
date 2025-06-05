@@ -128,9 +128,19 @@ export default function ARPage() {
       );
     } catch (error) {
       console.error("❌ ERREUR GLOBALE AR:", error);
+      console.error("🔍 Type erreur globale:", typeof error);
+      console.error("🔍 Nom erreur globale:", error.name);
+      console.error("🔍 Message erreur globale:", error.message);
+      console.error("🔍 Stack erreur globale:", error.stack);
+      console.error(
+        "🔍 Erreur globale complète:",
+        JSON.stringify(error, Object.getOwnPropertyNames(error))
+      );
       console.log("🔄 Retour au status ready");
       setStatus("ready");
-      toast.error("Impossible de démarrer la réalité augmentée");
+      toast.error(
+        `Erreur AR: ${error.message || error.name || "Erreur inconnue"}`
+      );
     }
   };
 

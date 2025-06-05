@@ -98,11 +98,24 @@ export class ARSession {
         });
       } catch (sessionError) {
         console.error("❌ ERREUR demande session AR:", sessionError);
-        console.log("🔍 Détails erreur:", {
-          name: sessionError.name,
-          message: sessionError.message,
-          stack: sessionError.stack,
-        });
+        console.error("🔍 Type erreur session:", typeof sessionError);
+        console.error("🔍 Nom erreur session:", sessionError.name);
+        console.error("🔍 Message erreur session:", sessionError.message);
+        console.error("🔍 Stack erreur session:", sessionError.stack);
+        console.error(
+          "🔍 Erreur session complète:",
+          JSON.stringify(sessionError, Object.getOwnPropertyNames(sessionError))
+        );
+
+        // Erreurs WebXR spécifiques
+        if (sessionError.name === "NotSupportedError") {
+          console.error("💡 Suggestion: Fonctionnalité WebXR non supportée");
+        } else if (sessionError.name === "SecurityError") {
+          console.error("💡 Suggestion: Problème de sécurité/permissions");
+        } else if (sessionError.name === "NotAllowedError") {
+          console.error("💡 Suggestion: Permission refusée par l'utilisateur");
+        }
+
         throw sessionError;
       }
 
@@ -136,6 +149,14 @@ export class ARSession {
       return this.session;
     } catch (error) {
       console.error("❌ Erreur lors de l'initialisation AR:", error);
+      console.error("🔍 Type erreur:", typeof error);
+      console.error("🔍 Nom erreur:", error.name);
+      console.error("🔍 Message erreur:", error.message);
+      console.error("🔍 Stack erreur:", error.stack);
+      console.error(
+        "🔍 Erreur complète:",
+        JSON.stringify(error, Object.getOwnPropertyNames(error))
+      );
       throw error;
     }
   }
