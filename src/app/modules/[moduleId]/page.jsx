@@ -225,41 +225,75 @@ export default function ModulePage() {
   // Charger la progression de l'utilisateur
   const loadUserProgress = async (userId, moduleId) => {
     try {
-      // Récupérer toutes les entrées de progression pour ce module
-      const progressRef = collection(db, "users", userId, "progress");
-      const progressQuery = query(
-        progressRef,
-        where("moduleId", "==", moduleId)
-      );
-      const progressSnapshot = await getDocs(progressQuery);
+      // Récupérer la progression du module depuis la nouvelle structure
+      const moduleProgressRef = doc(db, "users", userId, "progress", moduleId);
+      const moduleProgressSnap = await getDoc(moduleProgressRef);
 
       const progress = {};
 
-      progressSnapshot.forEach((doc) => {
-        const data = doc.data();
-        // Extraire la partie à partir de l'ID de la leçon (partX.Y)
-        if (data.lessonId && data.lessonId.match(/^part\d+\.\d+$/)) {
-          const [partKey] = data.lessonId.split(".");
-          const partNumber = partKey.replace("part", "");
+      if (moduleProgressSnap.exists()) {
+        const moduleData = moduleProgressSnap.data();
+        console.log("📊 Données de progression du module:", moduleData);
 
-          // Initialiser la partie si elle n'existe pas encore
-          if (!progress[partNumber]) {
-            progress[partNumber] = {
-              totalAnswered: 0,
-              totalQuestions: 0,
-              completedLessons: [],
-            };
-          }
+        // Utiliser la nouvelle structure de progression
+        if (moduleData.parts && typeof moduleData.parts === "object") {
+          // Traiter les données par partie
+          Object.entries(moduleData.parts).forEach(([partId, partData]) => {
+            const partNumber = partId.replace("part", "");
 
-          // Ajouter cette leçon à la progression
-          progress[partNumber].completedLessons.push(data.lessonId);
+            if (!progress[partNumber]) {
+              progress[partNumber] = {
+                totalAnswered: 0,
+                totalQuestions: 0,
+                completedExercises: [],
+                score: 0,
+              };
+            }
 
-          // Si cette leçon a des réponses enregistrées
-          if (data.answers && Object.keys(data.answers).length > 0) {
-            progress[partNumber].totalAnswered += 1;
-          }
+            // Compter les exercices complétés dans cette partie
+            if (partData && typeof partData === "object") {
+              const exercisesInPart = Object.keys(partData);
+              const correctExercises = exercisesInPart.filter(
+                (exerciseId) => partData[exerciseId]?.isCorrect === true
+              );
+
+              progress[partNumber].completedExercises = exercisesInPart;
+              progress[partNumber].totalAnswered = exercisesInPart.length;
+              progress[partNumber].score = correctExercises.length;
+            }
+          });
         }
-      });
+
+        // Fallback vers l'ancienne structure si nécessaire
+        if (
+          Object.keys(progress).length === 0 &&
+          moduleData.completedExercises
+        ) {
+          console.log("📊 Utilisation de l'ancienne structure de progression");
+
+          moduleData.completedExercises.forEach((exerciseId) => {
+            // Extraire le numéro de partie depuis l'ID d'exercice (part1.1, part2.1, etc.)
+            const partMatch = exerciseId.match(/^part(\d+)\./);
+            if (partMatch) {
+              const partNumber = partMatch[1];
+
+              if (!progress[partNumber]) {
+                progress[partNumber] = {
+                  totalAnswered: 0,
+                  totalQuestions: 0,
+                  completedExercises: [],
+                  score: 0,
+                };
+              }
+
+              progress[partNumber].completedExercises.push(exerciseId);
+              progress[partNumber].totalAnswered += 1;
+            }
+          });
+        }
+      } else {
+        console.log("📭 Aucune progression trouvée pour le module", moduleId);
+      }
 
       setUserProgress(progress);
     } catch (error) {
@@ -287,16 +321,29 @@ export default function ModulePage() {
   };
 
   const getProgressPercentage = (partNumber) => {
+    console.log(
+      `📊 Calcul pourcentage pour partie ${partNumber}:`,
+      userProgress[partNumber]
+    );
+
     if (!userProgress[partNumber]) return 0;
 
     const part = moduleParts.find((p) => p.partNumber === parseInt(partNumber));
     if (!part) return 0;
 
-    const totalLessons = part.lessons ? part.lessons.length : 0;
-    if (totalLessons === 0) return 0;
+    // Utiliser le nombre d'exercices comme base pour le calcul
+    const totalExercises = getExercisesCount(part);
+    if (totalExercises === 0) return 0;
 
-    const completed = userProgress[partNumber].completedLessons.length;
-    return Math.round((completed / totalLessons) * 100);
+    // Utiliser le score (exercices corrects) pour calculer le pourcentage
+    const correctExercises = userProgress[partNumber].score || 0;
+    const percentage = Math.round((correctExercises / totalExercises) * 100);
+
+    console.log(
+      `📊 Partie ${partNumber}: ${correctExercises}/${totalExercises} = ${percentage}%`
+    );
+
+    return percentage;
   };
 
   // Obtenir le nombre de leçons dans une partie

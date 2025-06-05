@@ -172,9 +172,13 @@ export default function RegisterPage() {
         >
           {/* Logo et titre */}
           <div className="text-center mb-6">
-            <h1 className="text-4xl font-bold text-neon-blue mb-1">
-              AstroLearn
-            </h1>
+            <div className="flex items-center justify-center mb-2">
+              <img
+                src="/Logo Final RTL.svg"
+                alt="AstroLearn"
+                className="h-16 w-auto"
+              />
+            </div>
             <p className="text-lunar-white/70">
               {language === "fr"
                 ? "Quels sont vos objectifs d'apprentissage en astronomie ?"

@@ -1,0 +1,20 @@
+{
+  "name": "AstroLearn - Plateforme d'apprentissage de l'astronomie",
+  "short_name": "AstroLearn",
+  "description": "Découvrez l'univers fascinant de l'astronomie avec AstroLearn",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0A14",
+  "theme_color": "#00D4FF",
+  "orientation": "portrait-primary",
+  "categories": ["education", "science"],
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/Logo Final NT.png?v=2",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

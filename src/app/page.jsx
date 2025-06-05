@@ -29,15 +29,21 @@ export default function HomePage() {
 
         // Vérifier si l'utilisateur est authentifié avant d'accéder à Firestore
         if (!isAuthenticated && !loading) {
-          console.log("Utilisateur non authentifié, chargement des modules par défaut");
+          console.log(
+            "Utilisateur non authentifié, chargement des modules par défaut"
+          );
           setModules([
-            { id: '1', title: 'Module par défaut', description: 'Contenu disponible sans authentification' }
+            {
+              id: "1",
+              title: "Module par défaut",
+              description: "Contenu disponible sans authentification",
+            },
           ]);
           return;
         }
 
         // Délai court pour s'assurer que Firebase est bien initialisé
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
         const modulesCollection = collection(db, "modules");
         const modulesSnapshot = await getDocs(modulesCollection);
@@ -50,7 +56,11 @@ export default function HomePage() {
         console.error("Erreur lors de la récupération des modules:", error);
         // Définir des modules par défaut en cas d'erreur
         setModules([
-          { id: 'error', title: 'Impossible de charger les modules', description: 'Veuillez réessayer plus tard' }
+          {
+            id: "error",
+            title: "Impossible de charger les modules",
+            description: "Veuillez réessayer plus tard",
+          },
         ]);
       } finally {
         setModulesLoading(false);
@@ -80,10 +90,12 @@ export default function HomePage() {
       {/* Navigation */}
       <nav className="bg-cosmic-black/60 backdrop-blur-sm border-b border-neon-blue/20 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-          <Link href="/" className="flex items-center space-x-2">
-            <span className="text-2xl font-bold text-lunar-white font-exo">
-              AstroLearn
-            </span>
+          <Link href="/" className="flex items-center h-full py-2">
+            <img
+              src="/Logo Final RTL.svg"
+              alt="AstroLearn"
+              className="h-full w-auto max-h-10"
+            />
           </Link>
 
           {/* Navigation Links - Now Centered */}
@@ -381,7 +393,9 @@ export default function HomePage() {
             <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-cosmic-black/50 to-transparent"></div>
             <Link href="/modules">
               <p className="text-neon-blue text-lg font-exo inline-block border border-neon-blue/30 rounded-full px-6 py-2 hover:bg-neon-blue/10 transition-all cursor-pointer relative z-10">
-                {language === "fr" ? "Découvrir plus de modules" : "Discover more modules"}
+                {language === "fr"
+                  ? "Découvrir plus de modules"
+                  : "Discover more modules"}
               </p>
             </Link>
           </div>
@@ -687,7 +701,7 @@ export default function HomePage() {
                 {language === "fr" ? "Coordonnées" : "Contact information"}
               </h3>
               <p className="text-lunar-white/70 mb-4 font-jetbrains">
-                lhommeaux@gmail.com
+                lhommeau.n@gmail.com
               </p>
               <div className="flex space-x-4">
                 <a

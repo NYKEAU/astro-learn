@@ -611,11 +611,36 @@ export default function UniversePage() {
       {/* En-tête */}
       <div className="absolute top-0 left-0 right-0 z-20 bg-cosmic-black/80 backdrop-blur-md border-b border-neon-blue/20 p-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <h1 className="text-2xl md:text-3xl font-bold text-lunar-white font-exo">
-            {language === "fr"
-              ? "Mon Univers Personnel"
-              : "My Personal Universe"}
-          </h1>
+          <div className="flex items-center gap-4">
+            {/* Bouton de retour */}
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-2 text-lunar-white/70 hover:text-neon-blue transition-colors duration-200 group"
+            >
+              <svg
+                className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform duration-200"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+              <span className="hidden sm:inline">
+                {language === "fr" ? "Retour" : "Back"}
+              </span>
+            </Link>
+
+            <h1 className="text-2xl md:text-3xl font-bold text-lunar-white font-exo">
+              {language === "fr"
+                ? "Mon Univers Personnel"
+                : "My Personal Universe"}
+            </h1>
+          </div>
 
           <div className="flex items-center gap-4">
             {/* Bouton panneau mobile */}

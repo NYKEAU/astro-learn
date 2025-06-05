@@ -130,9 +130,10 @@ function GLTFModel({ url, autoRotate = true, rotationSpeed = 0.01 }) {
       // Centrer le modèle
       scene.position.sub(center);
 
-      // Redimensionner pour qu'il soit bien visible
+      // Redimensionner pour qu'il soit bien visible sans être trop grand
       const maxDim = Math.max(size.x, size.y, size.z);
-      const scale = 8 / maxDim;
+      // Échelle plus conservative pour éviter d'être trop zoomé
+      const scale = Math.min(4 / maxDim, 2); // Maximum scale de 2, ou 4/maxDim si plus petit
       scene.scale.setScalar(scale);
 
       console.log(
@@ -359,6 +360,8 @@ export default function ModelViewer({
   onClose,
   language = "fr",
   isMobile = false,
+  title = "Modèle 3D",
+  moduleTitle = "",
 }) {
   const [autoRotate, setAutoRotate] = useState(true);
   const [rotationSpeed, setRotationSpeed] = useState(0.01);
@@ -420,14 +423,16 @@ export default function ModelViewer({
           onAnimationChange={handleAnimationChange}
           language={language}
           modelURL={modelURL}
+          title={title}
+          moduleTitle={moduleTitle}
         />
       )}
 
       <Suspense fallback={<LoadingSpinner />}>
         <Canvas
           camera={{
-            position: isMobile ? [0, 0, 4] : [0, 0, 2], // Plus loin sur mobile
-            fov: isMobile ? 75 : 75, // Même FOV
+            position: [0, 0, 6], // Position plus éloignée par défaut pour éviter d'être trop zoomé
+            fov: 60, // FOV légèrement réduit pour éviter la distortion
           }}
           style={{ background: "transparent" }}
           gl={{
@@ -454,8 +459,8 @@ export default function ModelViewer({
             enableRotate={true}
             enableDamping={true}
             dampingFactor={0.05}
-            minDistance={isMobile ? 1 : 0.3} // Plus loin sur mobile
-            maxDistance={isMobile ? 8 : 1} // Plus de zoom possible sur mobile
+            minDistance={1.5} // Distance minimale augmentée pour éviter d'être trop proche
+            maxDistance={20} // Distance maximale augmentée pour plus de flexibilité
             touches={{
               ONE: THREE.TOUCH.ROTATE,
               TWO: THREE.TOUCH.DOLLY_PAN,
