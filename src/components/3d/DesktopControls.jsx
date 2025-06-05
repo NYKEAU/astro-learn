@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNetworkInfo } from "@/lib/hooks/useNetworkInfo";
 import { arCodeShare } from "@/lib/session/ARCodeShare";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner";
 
 export function DesktopControls({
   autoRotate,
