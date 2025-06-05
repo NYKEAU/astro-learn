@@ -7,6 +7,7 @@ import { arCodeShare } from "@/lib/session/ARCodeShare";
 import { ARSession } from "@/lib/webxr/ARSession";
 import { useARSupport } from "@/lib/hooks/useARSupport";
 import { toast } from "sonner";
+import { MobileDebugOverlay } from "@/components/debug/MobileDebugOverlay";
 
 export default function ARPage() {
   const params = useParams();
@@ -19,6 +20,7 @@ export default function ARPage() {
   const [arSession, setArSession] = useState(null);
   const [isPlaced, setIsPlaced] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
+  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
     const loadARCode = async () => {
@@ -392,27 +394,40 @@ export default function ARPage() {
             {/* Contrôles AR */}
             <div className="absolute bottom-4 left-4 right-4 z-50">
               <div className="flex justify-between items-end">
-                {/* Bouton fermer */}
-                <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={closeAR}
-                  className="bg-red-500/80 backdrop-blur-md text-white p-3 rounded-full shadow-lg"
-                >
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                {/* Boutons de gauche */}
+                <div className="flex gap-2">
+                  {/* Bouton fermer */}
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={closeAR}
+                    className="bg-red-500/80 backdrop-blur-md text-white p-3 rounded-full shadow-lg"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </motion.button>
+                    <svg
+                      className="w-6 h-6"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </motion.button>
+
+                  {/* Bouton debug */}
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowDebug(!showDebug)}
+                    className="bg-purple-500/80 backdrop-blur-md text-white p-3 rounded-full shadow-lg text-xs font-bold"
+                  >
+                    DBG
+                  </motion.button>
+                </div>
 
                 {/* Bouton instructions */}
                 <motion.button
@@ -437,6 +452,12 @@ export default function ARPage() {
                 </motion.button>
               </div>
             </div>
+
+            {/* Overlay de debug mobile */}
+            <MobileDebugOverlay
+              isVisible={showDebug}
+              onToggle={() => setShowDebug(!showDebug)}
+            />
 
             {/* Instructions AR */}
             <AnimatePresence>

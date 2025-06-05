@@ -40,13 +40,67 @@ export class ARSession {
       }
       console.log("✅ AR supportée");
 
+      // Vérifier les permissions caméra avant la session AR
+      console.log("📹 Vérification permissions caméra...");
+      try {
+        if (navigator.permissions) {
+          const cameraPermission = await navigator.permissions.query({
+            name: "camera",
+          });
+          console.log("📹 Permission caméra:", cameraPermission.state);
+
+          if (cameraPermission.state === "denied") {
+            console.warn("⚠️ Permission caméra refusée");
+            throw new Error(
+              "Permission caméra refusée. Veuillez autoriser l'accès à la caméra."
+            );
+          }
+        }
+
+        // Test getUserMedia pour s'assurer que la caméra est accessible
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+          });
+          console.log("✅ Accès caméra confirmé");
+          // Fermer le stream immédiatement, WebXR s'en occupera
+          stream.getTracks().forEach((track) => track.stop());
+        } catch (mediaError) {
+          console.error("❌ Erreur accès caméra via getUserMedia:", mediaError);
+          if (mediaError.name === "NotAllowedError") {
+            throw new Error(
+              "Accès caméra refusé. Veuillez autoriser l'accès à la caméra."
+            );
+          }
+          throw new Error(`Erreur caméra: ${mediaError.message}`);
+        }
+      } catch (permError) {
+        console.warn("⚠️ Impossible de vérifier permissions:", permError);
+        // Continuer quand même, certains appareils ne supportent pas l'API permissions
+      }
+
       // Créer la session AR avec la configuration
       console.log("🚀 Demande de session AR...", WEBXR_CONFIG.sessionOptions);
-      this.session = await navigator.xr.requestSession(
-        "immersive-ar",
-        WEBXR_CONFIG.sessionOptions
-      );
-      console.log("✅ Session AR créée:", this.session);
+      try {
+        this.session = await navigator.xr.requestSession(
+          "immersive-ar",
+          WEBXR_CONFIG.sessionOptions
+        );
+        console.log("✅ Session AR créée:", this.session);
+        console.log("📱 Vérification état session:", {
+          renderState: this.session.renderState,
+          inputSources: this.session.inputSources,
+          environmentBlendMode: this.session.environmentBlendMode,
+        });
+      } catch (sessionError) {
+        console.error("❌ ERREUR demande session AR:", sessionError);
+        console.log("🔍 Détails erreur:", {
+          name: sessionError.name,
+          message: sessionError.message,
+          stack: sessionError.stack,
+        });
+        throw sessionError;
+      }
 
       // Configurer Three.js pour WebXR
       this.setupThreeJS();
@@ -58,7 +112,21 @@ export class ARSession {
       this.setupEventListeners();
 
       // Démarrer la boucle de rendu
+      console.log("🔄 Démarrage de la boucle de rendu...");
       this.renderer.setAnimationLoop(this.render.bind(this));
+
+      // Vérifier que le canvas est visible
+      setTimeout(() => {
+        const canvas = this.renderer.domElement;
+        console.log("🖥️ État du canvas:", {
+          width: canvas.width,
+          height: canvas.height,
+          style: canvas.style.cssText,
+          parentNode: canvas.parentNode ? "attaché" : "non attaché",
+          visibility: getComputedStyle(canvas).visibility,
+          display: getComputedStyle(canvas).display,
+        });
+      }, 1000);
 
       console.log("🥽 Session AR initialisée avec succès");
       return this.session;
