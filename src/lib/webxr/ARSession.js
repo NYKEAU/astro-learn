@@ -307,13 +307,21 @@ export class ARSession {
 
         console.log("⚠️ Mode BYPASS activé - rendu sans XR Three.js");
       } else {
-        // Configuration normale avec reference space compatible
-        console.log(`🎯 Configuration avec reference space: '${usedType}'`);
+        // IMPORTANT: Ne PAS utiliser setSession même si on a un reference space !
+        // Three.js va quand même essayer son propre reference space par défaut
+        console.log(
+          `🎯 Reference space trouvé: '${usedType}' - Mode manuel forcé`
+        );
 
-        // Maintenant on peut faire setSession en toute sécurité
-        await this.renderer.xr.setSession(this.session);
-        this.renderer.xr.setReferenceSpace(referenceSpace);
-        console.log("✅ Session XR liée avec reference space compatible");
+        // Forcer le mode manuel même avec reference space compatible
+        this.renderer.xr.enabled = false; // Pas de XR Three.js
+        this._manualSession = this.session;
+        this._compatibleReferenceSpace = referenceSpace;
+        this._compatibleReferenceSpaceType = usedType;
+
+        console.log(
+          "⚠️ Mode manuel forcé pour éviter le bug Three.js setSession"
+        );
       }
     }
 
@@ -439,11 +447,26 @@ export class ARSession {
   }
 
   setupEventListeners() {
+    const session = this._manualSession || this.session;
+
     // Gérer les taps pour placer le modèle
-    this.session.addEventListener("select", this.onSelect.bind(this));
+    session.addEventListener("select", this.onSelect.bind(this));
 
     // Gérer la fin de session
-    this.session.addEventListener("end", this.onSessionEnd.bind(this));
+    session.addEventListener("end", this.onSessionEnd.bind(this));
+
+    // En mode manuel, ajouter aussi un listener sur le canvas pour les taps
+    if (this._manualSession) {
+      const canvas = this.renderer.domElement;
+      canvas.addEventListener("click", () => {
+        if (this.reticle.visible && this.model) {
+          this.model.position.setFromMatrixPosition(this.reticle.matrix);
+          this.model.visible = true;
+          this.isPlaced = true;
+          console.log("📍 Modèle placé en mode manuel (tap canvas)");
+        }
+      });
+    }
   }
 
   onSelect() {
@@ -536,8 +559,6 @@ export class ARSession {
 
   manualRender(timestamp, frame) {
     try {
-      console.log("🔧 Rendu manuel WebXR");
-
       if (frame && this._manualSession) {
         this._frameCount = (this._frameCount || 0) + 1;
 
@@ -547,8 +568,15 @@ export class ARSession {
             frameNumber: this._frameCount,
             session: !!this._manualSession,
             sessionVisibility: this._manualSession?.visibilityState,
+            hasReferenceSpace: !!this._compatibleReferenceSpace,
+            referenceSpaceType: this._compatibleReferenceSpaceType,
           });
           this._firstFrameLogged = true;
+        }
+
+        // Gestion manuelle de l'AR avec reference space compatible
+        if (this._compatibleReferenceSpace) {
+          this.handleManualAR(frame);
         }
 
         // Faire tourner le modèle s'il est placé
@@ -556,7 +584,21 @@ export class ARSession {
           this.model.rotation.y += WEBXR_CONFIG.model.rotationSpeed;
         }
 
-        // Rendu basique sans reference space
+        // Rendu avec caméra WebXR
+        if (frame.getViewerPose && this._compatibleReferenceSpace) {
+          const pose = frame.getViewerPose(this._compatibleReferenceSpace);
+          if (pose) {
+            // Utiliser la vraie pose de la caméra AR
+            const view = pose.views[0];
+            if (view) {
+              this.camera.matrix.fromArray(view.transform.inverse.matrix);
+              this.camera.projectionMatrix.fromArray(view.projectionMatrix);
+              this.camera.updateMatrixWorld(true);
+            }
+          }
+        }
+
+        // Rendu
         if (this.renderer && this.scene && this.camera) {
           this.renderer.render(this.scene, this.camera);
         }
@@ -566,6 +608,47 @@ export class ARSession {
       }
     } catch (error) {
       console.error("❌ Erreur rendu manuel:", error);
+      // Continuer malgré l'erreur
+      if (this._manualSession) {
+        this._manualSession.requestAnimationFrame(this.manualRender.bind(this));
+      }
+    }
+  }
+
+  handleManualAR(frame) {
+    try {
+      // Gestion du hit testing manuel
+      if (!this.hitTestSourceRequested && this._compatibleReferenceSpace) {
+        this._manualSession
+          .requestHitTestSource({
+            space: this._compatibleReferenceSpace,
+          })
+          .then((hitTestSource) => {
+            this._hitTestSource = hitTestSource;
+            console.log("✅ Hit test source créé en mode manuel");
+          })
+          .catch((error) => {
+            console.warn("⚠️ Hit test non disponible:", error.message);
+          });
+        this.hitTestSourceRequested = true;
+      }
+
+      // Afficher le réticule si hit test disponible
+      if (this._hitTestSource && this._compatibleReferenceSpace) {
+        const hitTestResults = frame.getHitTestResults(this._hitTestSource);
+        if (hitTestResults.length > 0) {
+          const hit = hitTestResults[0];
+          const pose = hit.getPose(this._compatibleReferenceSpace);
+          if (pose) {
+            this.reticle.visible = true;
+            this.reticle.matrix.fromArray(pose.transform.matrix);
+          }
+        } else {
+          this.reticle.visible = false;
+        }
+      }
+    } catch (error) {
+      console.warn("⚠️ Erreur dans handleManualAR:", error.message);
     }
   }
 

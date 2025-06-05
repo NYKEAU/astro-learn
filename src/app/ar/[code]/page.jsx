@@ -126,10 +126,15 @@ export default function ARPage() {
 
       console.log("🎉 Succès AR - affichage toast");
 
-      // Vérifier si on est en mode bypass
+      // Vérifier le mode de fonctionnement
       if (session._bypassMode) {
         toast.warning(
           "Mode de compatibilité activé - Démonstration 3D sans AR réelle",
+          { duration: 5000 }
+        );
+      } else if (session._manualSession) {
+        toast.info(
+          "Mode AR manuel activé - Pointez votre caméra vers une surface plane",
           { duration: 5000 }
         );
       } else {
