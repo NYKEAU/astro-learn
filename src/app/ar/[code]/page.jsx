@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { arCodeShare } from "@/lib/session/ARCodeShare";
-import { ARSession } from "@/lib/webxr/ARSession";
+import { ARSessionSimple } from "@/lib/webxr/ARSessionSimple";
 import { useARSupport } from "@/lib/hooks/useARSupport";
 import { toast } from "sonner";
 import { MobileDebugOverlay } from "@/components/debug/MobileDebugOverlay";
@@ -115,33 +115,19 @@ export default function ARPage() {
       console.log("🎬 Changement status vers ar-active");
       setStatus("ar-active");
 
-      console.log("🔧 Création ARSession...");
-      const session = new ARSession();
+      console.log("🔧 Création ARSessionSimple...");
+      const session = new ARSessionSimple();
 
-      console.log("⚡ Initialisation ARSession...");
+      console.log("⚡ Initialisation ARSessionSimple...");
       await session.init(modelData.modelURL, "fr");
 
-      console.log("✅ ARSession initialisée, mise à jour state");
+      console.log("✅ ARSessionSimple initialisée, mise à jour state");
       setArSession(session);
 
       console.log("🎉 Succès AR - affichage toast");
-
-      // Vérifier le mode de fonctionnement
-      if (session._bypassMode) {
-        toast.warning(
-          "Mode de compatibilité activé - Démonstration 3D sans AR réelle",
-          { duration: 5000 }
-        );
-      } else if (session._manualSession) {
-        toast.info(
-          "Mode AR manuel activé - Pointez votre caméra vers une surface plane",
-          { duration: 5000 }
-        );
-      } else {
-        toast.success(
-          "Session AR démarrée ! Pointez votre caméra vers une surface plane"
-        );
-      }
+      toast.success(
+        "Session AR démarrée ! Pointez votre caméra vers une surface plane et tapez pour placer l'objet"
+      );
     } catch (error) {
       console.error("❌ ERREUR GLOBALE AR:", error);
       console.error("🔍 Type erreur globale:", typeof error);
