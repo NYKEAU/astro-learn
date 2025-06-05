@@ -245,13 +245,51 @@ export async function diagnosticWebXR() {
     console.log("✅ Connexion sécurisée (HTTPS)");
   }
 
-  // 6. Recommandations
+  // 6. Test du reference space (diagnostic avancé)
+  if (diagnostic.webxr.immersiveAR) {
+    try {
+      console.log("🔍 Test du reference space...");
+      const session = await navigator.xr.requestSession("immersive-ar", {
+        requiredFeatures: ["hit-test"],
+      });
+
+      try {
+        const refSpace = await session.requestReferenceSpace("local-floor");
+        diagnostic.webxr.referenceSpace = "local-floor";
+        console.log("✅ Reference space 'local-floor' disponible");
+      } catch (e) {
+        try {
+          const refSpace = await session.requestReferenceSpace("local");
+          diagnostic.webxr.referenceSpace = "local";
+          console.log("✅ Reference space 'local' disponible");
+        } catch (e2) {
+          diagnostic.webxr.referenceSpace = false;
+          console.log("❌ Aucun reference space disponible - CRITIQUE!");
+        }
+      }
+
+      session.end();
+    } catch (error) {
+      console.warn(
+        "⚠️ Impossible de tester le reference space:",
+        error.message
+      );
+      diagnostic.webxr.referenceSpaceError = error.message;
+    }
+  }
+
+  // 7. Recommandations
   console.log("\n💡 RECOMMANDATIONS:");
   if (!diagnostic.webxr.available) {
     console.log("❌ Utilisez Chrome/Edge 79+ ou Safari 13+");
   }
   if (!diagnostic.webxr.immersiveAR) {
     console.log("❌ Vérifiez que ARCore/ARKit est installé et activé");
+  }
+  if (diagnostic.webxr.referenceSpace === false) {
+    console.log(
+      "❌ CRITIQUE: Reference space non disponible - redémarrez ARCore/ARKit"
+    );
   }
   if (diagnostic.permissions.camera === "denied") {
     console.log("❌ Autorisez l'accès à la caméra dans les paramètres");

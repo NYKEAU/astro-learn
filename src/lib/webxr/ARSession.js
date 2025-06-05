@@ -65,7 +65,25 @@ export class ARSession {
       console.log("🔑 Options de session:", sessionOptions);
 
       try {
-        // Demander la session WebXR (cela va automatiquement demander les permissions caméra)
+        // NOUVELLE APPROCHE: Demander explicitement la permission caméra AVANT WebXR
+        console.log("📹 Test et demande permission caméra...");
+        try {
+          const testStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment" },
+          });
+          console.log("✅ Permission caméra accordée");
+          testStream.getTracks().forEach((track) => track.stop()); // Fermer immédiatement
+        } catch (permError) {
+          console.error("❌ Permission caméra refusée:", permError.name);
+          if (permError.name === "NotAllowedError") {
+            throw new Error(
+              "❌ Veuillez autoriser l'accès à la caméra pour utiliser l'AR"
+            );
+          }
+          throw permError;
+        }
+
+        // Demander la session WebXR (maintenant que la permission caméra est accordée)
         this.session = await navigator.xr.requestSession(
           "immersive-ar",
           sessionOptions
@@ -106,7 +124,7 @@ export class ARSession {
       }
 
       // Configurer Three.js APRÈS avoir obtenu la session
-      this.setupThreeJS();
+      await this.setupThreeJS();
 
       // Charger le modèle 3D
       await this.loadModel(modelURL);
@@ -212,7 +230,7 @@ export class ARSession {
     }, 500);
   }
 
-  setupThreeJS() {
+  async setupThreeJS() {
     console.log("🎨 Configuration Three.js pour WebXR...");
 
     // Créer le renderer WebXR AVANT de configurer la session
@@ -242,8 +260,35 @@ export class ARSession {
 
     // CORRECTION: Lier la session APRÈS avoir activé XR
     if (this.session) {
-      this.renderer.xr.setSession(this.session);
+      await this.renderer.xr.setSession(this.session);
       console.log("🔗 Session XR liée au renderer");
+
+      // CRITIQUE: S'assurer que le reference space est configuré
+      try {
+        const referenceSpace = await this.session.requestReferenceSpace(
+          "local-floor"
+        );
+        this.renderer.xr.setReferenceSpace(referenceSpace);
+        console.log("✅ Reference space 'local-floor' configuré");
+      } catch (error) {
+        console.warn(
+          "⚠️ local-floor non disponible, essai 'local':",
+          error.message
+        );
+        try {
+          const referenceSpace = await this.session.requestReferenceSpace(
+            "local"
+          );
+          this.renderer.xr.setReferenceSpace(referenceSpace);
+          console.log("✅ Reference space 'local' configuré");
+        } catch (error2) {
+          console.error(
+            "❌ CRITIQUE: Impossible de configurer reference space:",
+            error2
+          );
+          throw new Error("Reference space non disponible - AR impossible");
+        }
+      }
     }
 
     // Créer la scène
@@ -513,6 +558,12 @@ export class ARSession {
     const referenceSpace = this.renderer.xr.getReferenceSpace();
     const session = this.renderer.xr.getSession();
 
+    // Vérifier que nous avons bien un reference space
+    if (!referenceSpace) {
+      console.warn("⚠️ Pas de reference space pour hit test");
+      return;
+    }
+
     if (!this.hitTestSourceRequested) {
       try {
         // Essayer d'obtenir la source de hit test depuis les contrôleurs
@@ -521,15 +572,17 @@ export class ARSession {
           this.hitTestSource = await session.requestHitTestSource({
             space: inputSources[0].targetRaySpace,
           });
+          console.log("✅ Hit test source créé depuis input source");
         } else {
           // Fallback : utiliser l'espace de référence du viewer
           this.hitTestSource = await session.requestHitTestSource({
-            space: session.viewerSpace,
+            space: session.viewerSpace || referenceSpace,
           });
+          console.log("✅ Hit test source créé depuis viewer space");
         }
         this.hitTestSourceRequested = true;
       } catch (error) {
-        console.warn("Hit test source non disponible:", error);
+        console.warn("⚠️ Hit test source non disponible:", error);
         this.hitTestSourceRequested = true; // Éviter de réessayer en boucle
       }
     }

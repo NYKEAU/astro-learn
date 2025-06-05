@@ -116,6 +116,32 @@ export function WebXRDiagnostic({ onClose }) {
                       )}
                     </div>
                   )}
+
+                  {diagnostic.webxr?.referenceSpace !== undefined && (
+                    <div className="mt-3">
+                      <div className="flex justify-between">
+                        <span>Reference Space</span>
+                        <span
+                          className={
+                            diagnostic.webxr.referenceSpace === false
+                              ? "text-red-600 font-bold"
+                              : ""
+                          }
+                        >
+                          {getStatusIcon(
+                            diagnostic.webxr.referenceSpace !== false
+                          )}
+                          {diagnostic.webxr.referenceSpace || "Non disponible"}
+                        </span>
+                      </div>
+                      {diagnostic.webxr.referenceSpace === false && (
+                        <div className="text-red-600 text-sm mt-1">
+                          ⚠️ CRITIQUE: Sans reference space, l'AR ne peut pas
+                          fonctionner
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -177,6 +203,12 @@ export function WebXRDiagnostic({ onClose }) {
                       <li>
                         Vérifiez que ARCore (Android) ou ARKit (iOS) est
                         installé et activé
+                      </li>
+                    )}
+                    {diagnostic.webxr?.referenceSpace === false && (
+                      <li className="text-red-600 font-bold">
+                        CRITIQUE: Reference space non disponible - redémarrez
+                        ARCore/ARKit
                       </li>
                     )}
                     {diagnostic.permissions?.camera === "denied" && (
