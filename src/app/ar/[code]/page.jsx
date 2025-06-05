@@ -542,8 +542,8 @@ export default function ARPage() {
                     </h3>
                     <p className="text-lunar-white/70 text-sm">
                       {isPlaced
-                        ? "Déplacez-vous autour du modèle pour l'explorer"
-                        : "Pointez votre caméra vers une surface plane et tapez pour placer le modèle"}
+                        ? "Modèle placé ! Déplacez-vous autour pour l'explorer. Tapez pour le repositionner."
+                        : "Recherchez le réticule vert sur une surface plane, puis tapez pour placer le modèle"}
                     </p>
                   </div>
                 </motion.div>

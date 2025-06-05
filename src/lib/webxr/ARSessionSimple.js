@@ -145,13 +145,30 @@ export class ARSessionSimple {
     const material = new THREE.MeshBasicMaterial({
       color: 0x00ff00,
       transparent: true,
-      opacity: 0.7,
+      opacity: 0.8,
+      side: THREE.DoubleSide, // Visible des deux côtés
     });
 
     this.reticle = new THREE.Mesh(geometry, material);
     this.reticle.matrixAutoUpdate = false;
     this.reticle.visible = false;
     this.scene.add(this.reticle);
+
+    // Ajouter un cercle central pour meilleure visibilité
+    const centerGeometry = new THREE.CircleGeometry(0.05, 16).rotateX(
+      -Math.PI / 2
+    );
+    const centerMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00ff00,
+      transparent: true,
+      opacity: 1.0,
+      side: THREE.DoubleSide,
+    });
+
+    const centerDot = new THREE.Mesh(centerGeometry, centerMaterial);
+    this.reticle.add(centerDot);
+
+    console.log("🎯 Réticule créé avec indicateur central");
   }
 
   setupLighting() {
@@ -255,6 +272,14 @@ export class ARSessionSimple {
           const hitPose = hitTestResults[0].getPose(this.xrRefSpace);
           this.reticle.visible = true;
           this.reticle.matrix.fromArray(hitPose.transform.matrix);
+
+          // Log la première détection de surface
+          if (!this._surfaceDetected) {
+            console.log("🎯 Surface détectée ! Réticule visible");
+            this._surfaceDetected = true;
+          }
+        } else {
+          this.reticle.visible = false;
         }
       }
 
@@ -310,14 +335,45 @@ export class ARSessionSimple {
   // Méthode pour placer le modèle au tap (à appeler depuis l'UI)
   placeModel() {
     if (this.reticle.visible && this.model) {
-      this.model.matrix.copy(this.reticle.matrix);
+      // Extraire la position du réticule et placer le modèle légèrement au-dessus
+      const reticlePosition = new THREE.Vector3();
+      const reticleQuaternion = new THREE.Quaternion();
+      const reticleScale = new THREE.Vector3();
+
+      // Décomposer la matrice du réticule
+      this.reticle.matrix.decompose(
+        reticlePosition,
+        reticleQuaternion,
+        reticleScale
+      );
+
+      // Placer le modèle à la position du réticule mais légèrement surélevé
+      this.model.position.copy(reticlePosition);
+      this.model.position.y += 0.1; // Soulever de 10cm au-dessus de la surface
+
+      // Appliquer la rotation du réticule
+      this.model.quaternion.copy(reticleQuaternion);
+
+      // S'assurer que le modèle a une taille appropriée
+      this.model.scale.setScalar(0.3); // 30cm de taille
+
       this.model.visible = true;
       this.isPlaced = true;
-      console.log("📍 Modèle placé");
+
+      const action = this.isPlaced ? "repositionné" : "placé";
+      console.log(`📍 Modèle ${action} à la position:`, {
+        position: this.model.position,
+        reticlePosition: reticlePosition,
+        scale: this.model.scale,
+        distance: reticlePosition.distanceTo(new THREE.Vector3(0, 0, 0)),
+      });
     } else {
       console.log("⚠️ Impossible de placer le modèle:", {
         reticleVisible: this.reticle?.visible,
         hasModel: !!this.model,
+        reason: !this.reticle?.visible
+          ? "Aucune surface détectée"
+          : "Modèle non chargé",
       });
     }
   }
