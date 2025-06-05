@@ -40,119 +40,72 @@ export class ARSession {
       }
       console.log("✅ AR supportée");
 
-      // FORCER la demande d'accès caméra AVANT WebXR (obligatoire!)
-      console.log("📹 DEMANDE OBLIGATOIRE de permissions caméra...");
-      let cameraStream = null;
+      // NOUVELLE APPROCHE: Demander directement la session WebXR avec permissions
+      console.log(
+        "🚀 Demande session AR avec gestion automatique des permissions..."
+      );
 
-      try {
-        console.log("📹 getUserMedia avec facingMode environment...");
-        cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "environment", // Caméra arrière pour AR
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        });
+      // Configuration de session optimisée
+      let sessionOptions = {
+        requiredFeatures: ["hit-test"],
+        optionalFeatures: ["dom-overlay", "light-estimation"],
+      };
 
-        console.log("✅ CAMÉRA AUTORISÉE !", {
-          tracks: cameraStream.getVideoTracks().length,
-          trackSettings: cameraStream.getVideoTracks()[0]?.getSettings(),
-          trackLabel: cameraStream.getVideoTracks()[0]?.label,
-        });
-
-        // Tester le feed vidéo
-        const videoTrack = cameraStream.getVideoTracks()[0];
-        if (videoTrack) {
-          console.log("📹 Test feed vidéo:", {
-            enabled: videoTrack.enabled,
-            readyState: videoTrack.readyState,
-            muted: videoTrack.muted,
-          });
-        }
-      } catch (mediaError) {
-        console.error("❌ ERREUR CRITIQUE - Pas d'accès caméra:", mediaError);
-        console.error("🔍 Type:", mediaError.name);
-        console.error("🔍 Message:", mediaError.message);
-
-        if (mediaError.name === "NotAllowedError") {
-          throw new Error(
-            "❌ Permission caméra REFUSÉE. Rechargez et autorisez l'accès à la caméra."
-          );
-        } else if (mediaError.name === "NotFoundError") {
-          throw new Error("❌ Aucune caméra trouvée sur cet appareil.");
-        } else if (mediaError.name === "NotReadableError") {
-          throw new Error("❌ Caméra occupée par une autre application.");
-        }
-        throw new Error(`❌ Erreur caméra: ${mediaError.message}`);
-      }
-
-      // Créer la session AR avec la configuration
-      let sessionOptions = { ...WEBXR_CONFIG.sessionOptions };
-
-      // Créer un div dédié pour domOverlay (évite les références circulaires)
+      // Créer un div dédié pour domOverlay si nécessaire
       if (sessionOptions.optionalFeatures.includes("dom-overlay")) {
         const overlayRoot = document.createElement("div");
         overlayRoot.id = "ar-overlay-root";
         overlayRoot.style.cssText =
           "position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999;";
         document.body.appendChild(overlayRoot);
-
         sessionOptions.domOverlay = { root: overlayRoot };
-        console.log("🎭 DOM Overlay configuré avec div dédié");
+        console.log("🎭 DOM Overlay configuré");
       }
 
-      console.log("🚀 Demande de session AR (caméra pré-autorisée)...", {
-        requiredFeatures: sessionOptions.requiredFeatures,
-        optionalFeatures: sessionOptions.optionalFeatures,
-        hasDomOverlay: !!sessionOptions.domOverlay,
-        cameraStreamActive: !!cameraStream,
-      });
+      console.log("🔑 Options de session:", sessionOptions);
 
       try {
-        // Demander la session WebXR maintenant que la caméra est autorisée
+        // Demander la session WebXR (cela va automatiquement demander les permissions caméra)
         this.session = await navigator.xr.requestSession(
           "immersive-ar",
           sessionOptions
         );
-
-        // Fermer notre stream manuel maintenant que WebXR prend le relais
-        if (cameraStream) {
-          console.log(
-            "📹 Fermeture du stream manuel, WebXR prend le relais..."
-          );
-          cameraStream.getTracks().forEach((track) => track.stop());
-          cameraStream = null;
-        }
         console.log("✅ Session AR créée:", this.session);
-        console.log("📱 Vérification état session:", {
+
+        // Vérifications post-session
+        console.log("📱 État session AR:", {
           renderState: this.session.renderState,
-          inputSources: this.session.inputSources,
+          inputSources: this.session.inputSources?.length || 0,
           environmentBlendMode: this.session.environmentBlendMode,
+          visibilityState: this.session.visibilityState,
         });
       } catch (sessionError) {
         console.error("❌ ERREUR demande session AR:", sessionError);
-        console.error("🔍 Type erreur session:", typeof sessionError);
-        console.error("🔍 Nom erreur session:", sessionError.name);
+        console.error("🔍 Type erreur session:", sessionError.name);
         console.error("🔍 Message erreur session:", sessionError.message);
-        console.error("🔍 Stack erreur session:", sessionError.stack);
-        console.error(
-          "🔍 Erreur session complète:",
-          JSON.stringify(sessionError, Object.getOwnPropertyNames(sessionError))
-        );
 
-        // Erreurs WebXR spécifiques
+        // Gestion spécifique des erreurs WebXR
         if (sessionError.name === "NotSupportedError") {
-          console.error("💡 Suggestion: Fonctionnalité WebXR non supportée");
+          throw new Error(
+            "❌ Fonctionnalité WebXR non supportée sur cet appareil"
+          );
         } else if (sessionError.name === "SecurityError") {
-          console.error("💡 Suggestion: Problème de sécurité/permissions");
+          throw new Error(
+            "❌ Erreur de sécurité - Assurez-vous d'être en HTTPS"
+          );
         } else if (sessionError.name === "NotAllowedError") {
-          console.error("💡 Suggestion: Permission refusée par l'utilisateur");
+          throw new Error(
+            "❌ Permission caméra refusée - Rechargez et autorisez l'accès"
+          );
+        } else if (sessionError.name === "InvalidStateError") {
+          throw new Error(
+            "❌ État invalide - Une session AR est peut-être déjà active"
+          );
         }
-
         throw sessionError;
       }
 
-      // Configurer Three.js pour WebXR
+      // Configurer Three.js APRÈS avoir obtenu la session
       this.setupThreeJS();
 
       // Charger le modèle 3D
@@ -161,38 +114,17 @@ export class ARSession {
       // Configurer les événements
       this.setupEventListeners();
 
-      // Démarrer la boucle de rendu avec debug WebXR
+      // Démarrer la boucle de rendu avec monitoring amélioré
       console.log("🔄 Démarrage de la boucle de rendu...");
       this._frameCount = 0;
+      this._lastFrameTime = performance.now();
       this.renderer.setAnimationLoop(this.render.bind(this));
 
-      // Vérifier les frames WebXR après 2 secondes
-      setTimeout(() => {
-        console.log("🔍 État frames WebXR après 2s:", {
-          frameCount: this._frameCount,
-          sessionActive: !!this.session,
-          rendererXREnabled: this.renderer.xr.enabled,
-          sessionMode: this.session?.environmentBlendMode,
-        });
+      // Monitoring des frames WebXR
+      this.startFrameMonitoring();
 
-        if (this._frameCount === 0) {
-          console.error("❌ PROBLÈME: Aucune frame WebXR après 2s!");
-          console.error("💡 Possible: ARCore/ARKit ne démarre pas");
-        }
-      }, 2000);
-
-      // Vérifier que le canvas est visible
-      setTimeout(() => {
-        const canvas = this.renderer.domElement;
-        console.log("🖥️ État du canvas:", {
-          width: canvas.width,
-          height: canvas.height,
-          style: canvas.style.cssText,
-          parentNode: canvas.parentNode ? "attaché" : "non attaché",
-          visibility: getComputedStyle(canvas).visibility,
-          display: getComputedStyle(canvas).display,
-        });
-      }, 1000);
+      // Vérifier le canvas après initialisation
+      this.checkCanvasStatus();
 
       console.log("🥽 Session AR initialisée avec succès");
       return this.session;
@@ -202,43 +134,124 @@ export class ARSession {
       console.error("🔍 Nom erreur:", error.name);
       console.error("🔍 Message erreur:", error.message);
       console.error("🔍 Stack erreur:", error.stack);
-      console.error(
-        "🔍 Erreur complète:",
-        JSON.stringify(error, Object.getOwnPropertyNames(error))
-      );
+
+      // Nettoyer en cas d'erreur
+      this.cleanup();
       throw error;
     }
+  }
+
+  startFrameMonitoring() {
+    // Monitoring initial après 2 secondes
+    setTimeout(() => {
+      console.log("🔍 État frames WebXR après 2s:", {
+        frameCount: this._frameCount,
+        sessionActive: !!this.session,
+        sessionVisibility: this.session?.visibilityState,
+        rendererXREnabled: this.renderer?.xr?.enabled,
+        sessionMode: this.session?.environmentBlendMode,
+        fps: this._frameCount > 0 ? Math.round(this._frameCount / 2) : 0,
+      });
+
+      if (this._frameCount === 0) {
+        console.error("❌ PROBLÈME: Aucune frame WebXR après 2s!");
+        console.error("💡 Diagnostics suggérés:");
+        console.error("   - Vérifiez que ARCore/ARKit est installé et activé");
+        console.error("   - Assurez-vous d'être en HTTPS");
+        console.error("   - Redémarrez l'application caméra et réessayez");
+        console.error(
+          "   - Vérifiez les permissions caméra dans les paramètres"
+        );
+      }
+    }, 2000);
+
+    // Monitoring continu toutes les 10 secondes
+    this._monitoringInterval = setInterval(() => {
+      if (this.session && this._frameCount > 0) {
+        const now = performance.now();
+        const timeDelta = (now - this._lastFrameTime) / 1000;
+        const currentFPS = this._frameCount / timeDelta;
+
+        console.log("📊 Stats AR:", {
+          frames: this._frameCount,
+          fps: Math.round(currentFPS),
+          sessionState: this.session.visibilityState,
+          modelPlaced: this.isPlaced,
+        });
+      }
+    }, 10000);
+  }
+
+  checkCanvasStatus() {
+    setTimeout(() => {
+      const canvas = this.renderer?.domElement;
+      if (canvas) {
+        console.log("🖥️ État du canvas:", {
+          width: canvas.width,
+          height: canvas.height,
+          clientWidth: canvas.clientWidth,
+          clientHeight: canvas.clientHeight,
+          style: canvas.style.cssText,
+          parentNode: canvas.parentNode ? "attaché" : "non attaché",
+          visibility: getComputedStyle(canvas).visibility,
+          display: getComputedStyle(canvas).display,
+          position: getComputedStyle(canvas).position,
+        });
+
+        // Forcer le canvas en plein écran si nécessaire
+        if (canvas.style.position !== "fixed") {
+          canvas.style.position = "fixed";
+          canvas.style.top = "0";
+          canvas.style.left = "0";
+          canvas.style.width = "100%";
+          canvas.style.height = "100%";
+          canvas.style.zIndex = "1000";
+          console.log("📱 Canvas forcé en plein écran");
+        }
+      }
+    }, 500);
   }
 
   setupThreeJS() {
     console.log("🎨 Configuration Three.js pour WebXR...");
 
-    // Créer le renderer WebXR avec la configuration
+    // Créer le renderer WebXR AVANT de configurer la session
     console.log("🖥️ Création du renderer WebGL...");
-    this.renderer = new THREE.WebGLRenderer(WEBXR_CONFIG.renderer);
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance",
+    });
     console.log("✅ Renderer créé");
 
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+    // Configuration du renderer
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limiter pour les performances
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+
     console.log(
-      "📐 Taille renderer définie:",
+      "📐 Taille renderer:",
       window.innerWidth,
       "x",
       window.innerHeight
     );
 
+    // IMPORTANT: Activer XR AVANT de lier la session
     this.renderer.xr.enabled = true;
     console.log("🥽 XR activé sur le renderer");
 
-    this.renderer.xr.setSession(this.session);
-    console.log("🔗 Session XR liée au renderer");
+    // CORRECTION: Lier la session APRÈS avoir activé XR
+    if (this.session) {
+      this.renderer.xr.setSession(this.session);
+      console.log("🔗 Session XR liée au renderer");
+    }
 
     // Créer la scène
     console.log("🎬 Création de la scène 3D...");
     this.scene = new THREE.Scene();
     console.log("✅ Scène créée");
 
-    // Créer la caméra avec la configuration
+    // Créer la caméra
     console.log("📷 Création de la caméra...");
     const { fov, near, far } = WEBXR_CONFIG.camera;
     this.camera = new THREE.PerspectiveCamera(
@@ -249,19 +262,26 @@ export class ARSession {
     );
     console.log("✅ Caméra créée avec FOV:", fov);
 
-    // Créer le réticule (indicateur de placement)
+    // Créer le réticule
     console.log("🎯 Création du réticule...");
     this.createReticle();
     console.log("✅ Réticule créé");
 
-    // Ajouter l'éclairage avec la configuration
+    // Ajouter l'éclairage
     console.log("💡 Configuration de l'éclairage...");
     this.setupLighting();
     console.log("✅ Éclairage configuré");
 
-    // Ajouter le canvas au DOM
+    // Ajouter le canvas au DOM avec style approprié
     console.log("📱 Ajout du canvas au DOM...");
-    document.body.appendChild(this.renderer.domElement);
+    const canvas = this.renderer.domElement;
+    canvas.style.position = "fixed";
+    canvas.style.top = "0";
+    canvas.style.left = "0";
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.zIndex = "1000";
+    document.body.appendChild(canvas);
     console.log("✅ Canvas ajouté au DOM");
   }
 
@@ -367,6 +387,17 @@ export class ARSession {
   }
 
   onSessionEnd() {
+    console.log("🔚 Fin de session AR détectée");
+    this.cleanup();
+  }
+
+  cleanup() {
+    // Arrêter le monitoring
+    if (this._monitoringInterval) {
+      clearInterval(this._monitoringInterval);
+      this._monitoringInterval = null;
+    }
+
     // Nettoyer les ressources
     if (
       this.renderer &&
@@ -383,6 +414,7 @@ export class ARSession {
       console.log("🧹 DOM Overlay nettoyé");
     }
 
+    // Réinitialiser les propriétés
     this.session = null;
     this.renderer = null;
     this.scene = null;
@@ -392,56 +424,89 @@ export class ARSession {
     this.hitTestSource = null;
     this.hitTestSourceRequested = false;
     this.isPlaced = false;
+    this._frameCount = 0;
+    this._firstFrameLogged = false;
+    this._noFrameWarned = false;
 
-    console.log("🔚 Session AR terminée");
+    console.log("🔚 Nettoyage complet terminé");
   }
 
   render(timestamp, frame) {
-    // Compter les frames reçues
-    if (frame) {
-      this._frameCount = (this._frameCount || 0) + 1;
+    try {
+      // Compter les frames reçues
+      if (frame) {
+        this._frameCount = (this._frameCount || 0) + 1;
 
-      // Debug première frame avec plus de détails
-      if (!this._firstFrameLogged) {
-        console.log("🎬 PREMIÈRE FRAME WebXR reçue:", {
-          timestamp,
-          frameNumber: this._frameCount,
-          session: !!this.session,
-          sessionEnvBlendMode: this.session?.environmentBlendMode,
-          hasCamera: !!frame.session?.inputSources,
-          viewerPose: !!frame.getViewerPose,
-        });
-        this._firstFrameLogged = true;
+        // Debug première frame avec plus de détails
+        if (!this._firstFrameLogged) {
+          console.log("🎬 PREMIÈRE FRAME WebXR reçue:", {
+            timestamp,
+            frameNumber: this._frameCount,
+            session: !!this.session,
+            sessionEnvBlendMode: this.session?.environmentBlendMode,
+            sessionVisibility: this.session?.visibilityState,
+            viewerPose: !!frame.getViewerPose,
+            referenceSpace: !!this.renderer.xr.getReferenceSpace(),
+          });
+          this._firstFrameLogged = true;
+        }
+
+        // Log périodique des frames (moins fréquent)
+        if (this._frameCount % 120 === 0) {
+          console.log(
+            `📊 Frame WebXR #${this._frameCount} - AR actif (${Math.round(
+              (this._frameCount / (performance.now() - this._lastFrameTime)) *
+                1000
+            )}fps)`
+          );
+        }
+
+        // Vérifier que la session est toujours active
+        if (this.session?.visibilityState !== "visible") {
+          console.warn(
+            "⚠️ Session AR non visible:",
+            this.session?.visibilityState
+          );
+        }
+
+        // Gérer le hit testing pour le réticule
+        this.handleHitTest(frame);
+      } else {
+        // Pas de frame WebXR - problème critique !
+        if (!this._noFrameWarned) {
+          console.error("❌ CRITIQUE: Aucune frame WebXR reçue!");
+          console.error("🔍 Debug session:", {
+            sessionExists: !!this.session,
+            sessionState: this.session?.visibilityState,
+            sessionInputSources: this.session?.inputSources?.length || 0,
+            rendererXR: this.renderer?.xr?.enabled,
+            environmentBlendMode: this.session?.environmentBlendMode,
+            referenceSpace: !!this.renderer?.xr?.getReferenceSpace(),
+          });
+          this._noFrameWarned = true;
+        }
+        return; // Ne pas tenter de rendre sans frame
       }
 
-      // Log périodique des frames
-      if (this._frameCount % 60 === 0) {
-        console.log(`📊 Frame WebXR #${this._frameCount} - AR actif`);
+      // Faire tourner le modèle s'il est placé
+      if (this.model && this.model.visible) {
+        this.model.rotation.y += WEBXR_CONFIG.model.rotationSpeed;
       }
 
-      // Gérer le hit testing pour le réticule
-      this.handleHitTest(frame);
-    } else {
-      // Pas de frame WebXR - problème critique !
-      if (!this._noFrameWarned) {
-        console.error("❌ CRITIQUE: Aucune frame WebXR reçue!");
-        console.error("🔍 Debug session:", {
-          sessionExists: !!this.session,
-          sessionInputSources: this.session?.inputSources?.length || 0,
-          rendererXR: this.renderer.xr.enabled,
-          environmentBlendMode: this.session?.environmentBlendMode,
-        });
-        this._noFrameWarned = true;
+      // Rendre la scène seulement si on a une frame valide
+      if (frame && this.renderer && this.scene && this.camera) {
+        this.renderer.render(this.scene, this.camera);
       }
+    } catch (renderError) {
+      console.error("❌ Erreur dans la boucle de rendu:", renderError);
+      console.error("🔍 Context:", {
+        hasFrame: !!frame,
+        hasRenderer: !!this.renderer,
+        hasScene: !!this.scene,
+        hasCamera: !!this.camera,
+        sessionActive: !!this.session,
+      });
     }
-
-    // Faire tourner le modèle s'il est placé
-    if (this.model && this.model.visible) {
-      this.model.rotation.y += WEBXR_CONFIG.model.rotationSpeed;
-    }
-
-    // Rendre la scène
-    this.renderer.render(this.scene, this.camera);
   }
 
   async handleHitTest(frame) {

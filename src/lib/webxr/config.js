@@ -108,3 +108,158 @@ export function getInstruction(instructionKey, language = "fr") {
     "Instruction non disponible"
   );
 }
+
+// Fonction de diagnostic WebXR améliorée
+export async function diagnosticWebXR() {
+  const diagnostic = {
+    timestamp: new Date().toISOString(),
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    language: navigator.language,
+    webxr: {
+      available: false,
+      immersiveAR: false,
+      features: {},
+    },
+    permissions: {
+      camera: "unknown",
+      details: null,
+    },
+    device: {
+      type: "unknown",
+      arSupport: "unknown",
+    },
+    network: {
+      protocol: window.location.protocol,
+      secure: window.location.protocol === "https:",
+    },
+  };
+
+  console.log("🔍 DIAGNOSTIC WEBXR COMPLET");
+  console.log("=".repeat(50));
+
+  // 1. Vérification WebXR
+  try {
+    if ("xr" in navigator) {
+      diagnostic.webxr.available = true;
+      console.log("✅ WebXR API disponible");
+
+      // Tester le support AR immersif
+      const arSupported = await navigator.xr.isSessionSupported("immersive-ar");
+      diagnostic.webxr.immersiveAR = arSupported;
+      console.log(
+        `${arSupported ? "✅" : "❌"} Support AR immersif: ${arSupported}`
+      );
+
+      // Tester les fonctionnalités optionnelles
+      const features = [
+        "hit-test",
+        "dom-overlay",
+        "light-estimation",
+        "anchors",
+      ];
+      for (const feature of features) {
+        try {
+          const supported = await navigator.xr.isSessionSupported(
+            "immersive-ar",
+            {
+              optionalFeatures: [feature],
+            }
+          );
+          diagnostic.webxr.features[feature] = supported;
+          console.log(
+            `${supported ? "✅" : "❌"} Feature ${feature}: ${supported}`
+          );
+        } catch (e) {
+          diagnostic.webxr.features[feature] = false;
+          console.log(`❌ Feature ${feature}: erreur (${e.message})`);
+        }
+      }
+    } else {
+      console.log("❌ WebXR API non disponible");
+    }
+  } catch (error) {
+    console.error("❌ Erreur lors de la vérification WebXR:", error);
+    diagnostic.webxr.error = error.message;
+  }
+
+  // 2. Vérification des permissions caméra
+  try {
+    if ("permissions" in navigator) {
+      const cameraPermission = await navigator.permissions.query({
+        name: "camera",
+      });
+      diagnostic.permissions.camera = cameraPermission.state;
+      diagnostic.permissions.details = cameraPermission;
+      console.log(`📹 Permission caméra: ${cameraPermission.state}`);
+
+      cameraPermission.addEventListener("change", () => {
+        console.log(`📹 Permission caméra changée: ${cameraPermission.state}`);
+      });
+    } else {
+      console.log("⚠️ API Permissions non disponible");
+    }
+  } catch (error) {
+    console.warn("⚠️ Impossible de vérifier les permissions caméra:", error);
+  }
+
+  // 3. Test de la caméra
+  try {
+    console.log("📹 Test d'accès à la caméra...");
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" },
+    });
+
+    console.log("✅ Accès caméra réussi:", {
+      tracks: stream.getVideoTracks().length,
+      settings: stream.getVideoTracks()[0]?.getSettings(),
+    });
+
+    // Fermer le stream de test
+    stream.getTracks().forEach((track) => track.stop());
+    diagnostic.permissions.cameraTest = "success";
+  } catch (error) {
+    console.error("❌ Test caméra échoué:", error);
+    diagnostic.permissions.cameraTest = error.name;
+    diagnostic.permissions.cameraError = error.message;
+  }
+
+  // 4. Détection du type d'appareil
+  const ua = navigator.userAgent.toLowerCase();
+  if (/android/i.test(ua)) {
+    diagnostic.device.type = "android";
+    diagnostic.device.arSupport = "ARCore requis";
+    console.log("📱 Appareil Android détecté - ARCore requis");
+  } else if (/iphone|ipad/i.test(ua)) {
+    diagnostic.device.type = "ios";
+    diagnostic.device.arSupport = "ARKit requis";
+    console.log("📱 Appareil iOS détecté - ARKit requis");
+  } else {
+    console.log("💻 Appareil desktop détecté - AR non supporté");
+  }
+
+  // 5. Vérification du protocole
+  if (!diagnostic.network.secure) {
+    console.error("🔒 PROBLÈME: WebXR nécessite HTTPS en production!");
+  } else {
+    console.log("✅ Connexion sécurisée (HTTPS)");
+  }
+
+  // 6. Recommandations
+  console.log("\n💡 RECOMMANDATIONS:");
+  if (!diagnostic.webxr.available) {
+    console.log("❌ Utilisez Chrome/Edge 79+ ou Safari 13+");
+  }
+  if (!diagnostic.webxr.immersiveAR) {
+    console.log("❌ Vérifiez que ARCore/ARKit est installé et activé");
+  }
+  if (diagnostic.permissions.camera === "denied") {
+    console.log("❌ Autorisez l'accès à la caméra dans les paramètres");
+  }
+  if (!diagnostic.network.secure) {
+    console.log("❌ Utilisez HTTPS en production");
+  }
+
+  console.log("=".repeat(50));
+  return diagnostic;
+}
