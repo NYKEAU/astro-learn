@@ -220,17 +220,32 @@ export function RegistrationForm({ compact = false, twoColumns = false }) {
         ...doc.data(),
       }));
 
-      // 3. Appeler l'IA pour générer le personalizedPath (numéros de module)
-      const aiResult = await aiService.generateLearningPath(
-        formData,
-        availableModules
-      );
-      // Fusionner tous les modules dans l'ordre easy, medium, hard
-      const personalizedPath = [
-        ...(aiResult.easyModules || []),
-        ...(aiResult.mediumModules || []),
-        ...(aiResult.hardModules || []),
-      ];
+      // 3. TEMPORAIRE: IA désactivée pour les tests
+      // const aiResult = await aiService.generateLearningPath(
+      //   formData,
+      //   availableModules
+      // );
+      // // Fusionner tous les modules dans l'ordre easy, medium, hard
+      // const personalizedPath = [
+      //   ...(aiResult.easyModules || []),
+      //   ...(aiResult.mediumModules || []),
+      //   ...(aiResult.hardModules || []),
+      // ];
+
+      // Parcours mock classique par défaut (tous les modules dans l'ordre)
+      const sortedModules = availableModules
+        .sort((a, b) => {
+          // Trier par ID numérique si possible, sinon par ordre alphabétique
+          const aNum = parseInt(a.id);
+          const bNum = parseInt(b.id);
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            return aNum - bNum;
+          }
+          return a.id.localeCompare(b.id);
+        })
+        .map((module) => module.id);
+
+      const personalizedPath = sortedModules;
 
       // 4. Authentification Google
       const { user, error } = await signInWithGoogle();
@@ -570,16 +585,7 @@ export function RegistrationForm({ compact = false, twoColumns = false }) {
               Quels sont vos objectifs d'apprentissage en astronomie ?
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Colonne gauche : grille d'objectifs */}
-            <div className="flex flex-col space-y-4">
-              <LearningGoals form={form} fields={["learningGoals"]} />
-            </div>
-            {/* Colonne droite : infos supplémentaires + astuce */}
-            <div className="flex flex-col space-y-4">
-              <LearningGoals form={form} fields={["additionalInfo", "tip"]} />
-            </div>
-          </div>
+          <LearningGoals form={form} />
         </>
       );
     }
