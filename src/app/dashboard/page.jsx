@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChange, signOut } from "@/lib/firebase/auth";
+import { useAuth } from "@/app/providers";
 import { useRouter } from "next/navigation";
 import { usePageTransition } from "@/lib/hooks/usePageTransition";
 import { db } from "@/lib/firebase/config";
@@ -23,6 +24,8 @@ import {
   ChevronUp,
   BarChart,
   Clock,
+  Sparkles,
+  X,
 } from "lucide-react";
 
 // Exemple de données utilisateur (à remplacer par des données réelles de Firebase)
@@ -83,6 +86,8 @@ export default function DashboardPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(true);
+  const [showOnboardingBanner, setShowOnboardingBanner] = useState(true);
+  const { onboardingCompleted } = useAuth();
 
   // Vérifier l'état d'authentification
   useEffect(() => {
@@ -227,6 +232,38 @@ export default function DashboardPage() {
               </Button>
             </div>
           </header>
+
+          {/* Banner onboarding */}
+          {onboardingCompleted === false && showOnboardingBanner && (
+            <div className="bg-gradient-to-r from-neon-blue/20 to-neon-pink/10 border-b border-neon-blue/30">
+              <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+                <Link href="/onboarding" className="flex items-center space-x-3 flex-1">
+                  <Sparkles className="h-5 w-5 text-neon-blue flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-lunar-white">
+                      {language === "fr"
+                        ? "Personnalisez votre expérience !"
+                        : "Personalize your experience!"}
+                    </p>
+                    <p className="text-xs text-lunar-white/70">
+                      {language === "fr"
+                        ? "Complétez votre profil pour un parcours d'apprentissage adapté à vos intérêts."
+                        : "Complete your profile for a learning path tailored to your interests."}
+                    </p>
+                  </div>
+                  <span className="text-neon-blue text-sm font-bold px-3 py-1 rounded-full border border-neon-blue/30 whitespace-nowrap">
+                    {language === "fr" ? "Commencer" : "Start"}
+                  </span>
+                </Link>
+                <button
+                  onClick={() => setShowOnboardingBanner(false)}
+                  className="ml-4 text-lunar-white/50 hover:text-lunar-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Contenu principal du dashboard - maintenant avec une hauteur fixe */}
           <main className="flex-1 container mx-auto px-4 py-6 flex flex-col h-[calc(100vh-4rem)]">

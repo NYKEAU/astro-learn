@@ -5,11 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { onAuthStateChange } from "@/lib/firebase/auth";
 import PropTypes from "prop-types";
 
-// Routes qui nécessitent une authentification
-const protectedRoutes = ["/dashboard", "/profile", "/courses"];
+const protectedRoutes = ["/dashboard", "/profile", "/courses", "/onboarding"];
 
-// Routes accessibles uniquement aux utilisateurs non authentifiés
-const authRoutes = ["/login", "/register"];
+const authRoutes = ["/register"];
 
 export function RouteGuard({ children }) {
   const router = useRouter();

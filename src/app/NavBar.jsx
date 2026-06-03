@@ -139,7 +139,7 @@ const NavBar = ({ user }) => {
           ) : (
             <div className="flex items-center space-x-2">
               <Link
-                href="/login"
+                href="/register"
                 className="px-3 py-1.5 text-sm text-neon-blue border border-neon-blue/50 rounded-md hover:bg-neon-blue/10 transition-colors duration-200"
               >
                 {language === "fr" ? "Connexion" : "Login"}
@@ -148,7 +148,7 @@ const NavBar = ({ user }) => {
                 href="/register"
                 className="px-3 py-1.5 text-sm bg-neon-blue text-cosmic-black rounded-md hover:bg-neon-blue/90 transition-colors duration-200"
               >
-                {language === "fr" ? "S'inscrire" : "Register"}
+                {language === "fr" ? "Commencer" : "Get started"}
               </Link>
             </div>
           )}
@@ -259,7 +259,7 @@ const NavBar = ({ user }) => {
               ) : (
                 <div className="flex flex-col space-y-2">
                   <Link
-                    href="/login"
+                    href="/register"
                     className="px-3 py-2 text-base text-center text-neon-blue border border-neon-blue/50 rounded-md hover:bg-neon-blue/10 transition-colors duration-200"
                   >
                     {language === "fr" ? "Connexion" : "Login"}
@@ -268,7 +268,7 @@ const NavBar = ({ user }) => {
                     href="/register"
                     className="px-3 py-2 text-base text-center bg-neon-blue text-cosmic-black rounded-md hover:bg-neon-blue/90 transition-colors duration-200"
                   >
-                    {language === "fr" ? "S'inscrire" : "Register"}
+                    {language === "fr" ? "Commencer" : "Get started"}
                   </Link>
                 </div>
               )}

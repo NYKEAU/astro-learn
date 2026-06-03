@@ -32,9 +32,10 @@ export const signInWithGoogle = async () => {
         email: result.user.email,
         displayName: result.user.displayName,
         photoURL: result.user.photoURL,
-        role: "free", // Par défaut, les nouveaux utilisateurs ont un rôle gratuit
-        unlockedModules: [], // Aucun module débloqué initialement
-        progression: {}, // Progression vide initialement
+        role: "free",
+        unlockedModules: [],
+        progression: {},
+        onboardingCompleted: false,
         createdAt: new Date(),
       });
     }
@@ -120,6 +121,7 @@ export const onAuthStateChange = (callback) => {
             unlockedModules: userData.unlockedModules || [],
             progression: userData.progression || {},
             formData: userData.formData || {},
+            onboardingCompleted: userData.onboardingCompleted ?? false,
           };
 
           callback(enhancedUser);
@@ -133,6 +135,7 @@ export const onAuthStateChange = (callback) => {
             role: "free",
             unlockedModules: [],
             progression: {},
+            onboardingCompleted: false,
             createdAt: new Date(),
           });
 
@@ -142,6 +145,7 @@ export const onAuthStateChange = (callback) => {
             premiumUntil: null,
             unlockedModules: [],
             progression: {},
+            onboardingCompleted: false,
           };
 
           callback(enhancedUser);

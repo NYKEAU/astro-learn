@@ -27,14 +27,14 @@ export function Providers({ children }) {
   const value = {
     user,
     loading,
-    // Expose les propriétés supplémentaires de l'utilisateur
-    role: user?.role || null, // 'free', 'premium' ou null pour les visiteurs non connectés
+    role: user?.role || null,
     isPremium: user?.role === 'premium',
     isFree: user?.role === 'free',
     isVisitor: !user,
     premiumUntil: user?.premiumUntil || null,
     unlockedModules: user?.unlockedModules || [],
     progression: user?.progression || {},
+    onboardingCompleted: user?.onboardingCompleted ?? false,
   };
 
   return (
